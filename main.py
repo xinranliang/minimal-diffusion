@@ -353,6 +353,8 @@ def main():
 
     # setup
     args = parser.parse_args()
+    # logger
+    args.save_dir = os.path.join(args.save_dir, args.date)
     metadata = get_metadata(args.dataset)
     torch.backends.cudnn.benchmark = True
     args.device = "cuda:{}".format(args.local_rank)
@@ -403,9 +405,6 @@ def main():
         args.batch_size = args.batch_size // ngpus
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
-    
-    # logger
-    args.save_dir = os.path.join(args.save_dir, args.date)
 
     # sampling
     if args.sampling_only:
@@ -421,9 +420,11 @@ def main():
             metadata.num_classes,
             args,
         )
+        os.makedirs(os.path.join(args.save_dir, "samples_loadckpt"), exist_ok=True)
         np.savez(
             os.path.join(
                 args.save_dir,
+                "samples_loadckpt",
                 f"{args.arch}_{args.dataset}-{args.sampling_steps}-sampling_steps-{len(sampled_images)}_images-class_condn_{args.class_cond}.npz",
             ),
             sampled_images,
@@ -439,7 +440,7 @@ def main():
         batch_size=args.batch_size,
         shuffle=sampler is None,
         sampler=sampler,
-        num_workers=4,
+        num_workers = 4 * ngpus,
         pin_memory=True,
     )
     if args.local_rank == 0:
@@ -470,18 +471,22 @@ def main():
                 args,
             )
             if args.local_rank == 0:
+                os.makedirs(os.path.join(args.save_dir, "samples"), exist_ok=True)
                 cv2.imwrite(
                     os.path.join(
                         args.save_dir,
+                        "samples",
                         f"{args.arch}_{args.dataset}-{args.diffusion_steps}_steps-{args.sampling_steps}-sampling_steps-class_condn_{args.class_cond}.png",
                     ),
                     np.concatenate(sampled_images, axis=1)[:, :, ::-1],
                 )
         if args.local_rank == 0:
+            os.makedirs(os.path.join(args.save_dir, "train_ckpt"), exist_ok=True)
             torch.save(
                 model.state_dict(),
                 os.path.join(
                     args.save_dir,
+                    "train_ckpt",
                     f"{args.arch}_{args.dataset}-epoch_{args.epochs}-timesteps_{args.diffusion_steps}-class_condn_{args.class_cond}.pt",
                 ),
             )
@@ -489,6 +494,7 @@ def main():
                 args.ema_dict,
                 os.path.join(
                     args.save_dir,
+                    "train_ckpt",
                     f"{args.arch}_{args.dataset}-epoch_{args.epochs}-timesteps_{args.diffusion_steps}-class_condn_{args.class_cond}_ema_{args.ema_w}.pt",
                 ),
             )

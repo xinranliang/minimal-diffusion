@@ -178,7 +178,7 @@ def get_dataset(name, data_dir, metadata):
         train_set = datasets.CIFAR10(
             root=data_dir,
             train=True,
-            download=True,
+            download=False,
             transform=transform_train,
         )
     elif name in ["imagenette", "melanoma", "afhq"]:
