@@ -173,7 +173,7 @@ class loss_logger:
         self.ema_loss = None
         self.ema_w = 0.9
 
-    def log(self, v, display=False):
+    def log(self, v, display=True):
         self.loss.append(v)
         if self.ema_loss is None:
             self.ema_loss = v
@@ -346,6 +346,7 @@ def main():
     )
 
     # misc
+    parser.add_argument("--date", type=str)
     parser.add_argument("--save-dir", type=str, default="./trained_models/")
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--seed", default=112233, type=int)
@@ -402,6 +403,9 @@ def main():
         args.batch_size = args.batch_size // ngpus
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
+    
+    # logger
+    args.save_dir = os.path.join(args.save_dir, args.date)
 
     # sampling
     if args.sampling_only:
