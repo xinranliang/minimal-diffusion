@@ -27,14 +27,6 @@ CLASSES = (
     "truck",
 )
 
-META_DATA = {
-    "image_size": 32,
-    "num_classes": 10,
-    "train_images": 50000,
-    "val_images": 10000,
-    "num_channels": 3,
-}
-
 
 def main():
     for split in ["train", "test"]:

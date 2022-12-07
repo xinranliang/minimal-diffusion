@@ -14,10 +14,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from dataset.data import get_metadata, get_dataset, fix_legacy_dict
-import unets
-
-unsqueeze3x = lambda x: x[..., None, None, None]
+from dataset.data import get_metadata, get_dataset
+import model.unets
+from utils import unsqueeze3x
 
 
 class GuassianDiffusion:
@@ -175,6 +174,7 @@ def train_one_epoch(
     logger,
     lrs,
     args,
+    epoch
 ):
     model.train()
     for step, (images, labels) in enumerate(dataloader):
@@ -205,7 +205,7 @@ def train_one_epoch(
                 args.ema_dict[k] = (
                     args.ema_w * args.ema_dict[k] + (1 - args.ema_w) * new_dict[k]
                 )
-            logger.log(loss.item(), display=not step % 100)
+            logger.log(loss.item(), len(dataloader) * epoch + step)
 
 
 # sample code

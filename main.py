@@ -4,7 +4,6 @@ import copy
 import math
 import argparse
 import numpy as np
-from time import time
 from tqdm import tqdm
 from easydict import EasyDict
 
@@ -14,13 +13,13 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from data import get_metadata, get_dataset, fix_legacy_dict
-import unets
+from dataset.data import get_metadata, get_dataset
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images
+import model.unets as unets
 import utils
 
-unsqueeze3x = lambda x: x[..., None, None, None]
 
-def main():
+def get_args():
     parser = argparse.ArgumentParser("Minimal implementation of diffusion models")
     # diffusion model
     parser.add_argument("--arch", type=str, help="Neural network architecture")
@@ -48,9 +47,13 @@ def main():
         default=False,
         help="Sampling using DDIM update step",
     )
+
     # dataset
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--data-dir", type=str, default="./dataset/")
+    parser.add_argument("--color", type=float, default=1.0, help="ratio of training distribution to be turned into colored images")
+    parser.add_argument("--grayscale", type=float, default=0.0, help="ratio of training distribution to be turned into grayscale images")
+
     # optimizer
     parser.add_argument(
         "--batch-size", type=int, default=128, help="batch-size per gpu"
@@ -58,6 +61,7 @@ def main():
     parser.add_argument("--lr", type=float, default=0.0001)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--ema_w", type=float, default=0.9995)
+
     # sampling/finetuning
     parser.add_argument("--pretrained-ckpt", type=str, help="Pretrained model ckpt")
     parser.add_argument("--delete-keys", nargs="+", help="Pretrained model ckpt")
@@ -82,9 +86,18 @@ def main():
 
     # setup
     args = parser.parse_args()
+
+    return args
+
+
+def main(args):
+    
     # logger
-    args.save_dir = os.path.join(args.save_dir, args.date)
-    metadata = get_metadata(args.dataset)
+    args.save_dir = os.path.join(args.save_dir, args.date, args.dataset)
+
+    metadata = get_metadata(args.dataset, args.color, args.grayscale)
+
+    # distribute data parallel
     torch.backends.cudnn.benchmark = True
     args.device = "cuda:{}".format(args.local_rank)
     torch.cuda.set_device(args.device)
@@ -110,7 +123,7 @@ def main():
     # load pre-trained model
     if args.pretrained_ckpt:
         print(f"Loading pretrained model from {args.pretrained_ckpt}")
-        d = fix_legacy_dict(torch.load(args.pretrained_ckpt, map_location=args.device))
+        d = utils.fix_legacy_dict(torch.load(args.pretrained_ckpt, map_location=args.device))
         dm = model.state_dict()
         if args.delete_keys:
             for k in args.delete_keys:
@@ -176,7 +189,29 @@ def main():
         print(
             f"Training dataset loaded: Number of batches: {len(train_loader)}, Number of images: {len(train_set)}"
         )
-    logger = loss_logger(len(train_loader) * args.epochs)
+    
+    # logging
+    log_dir = os.path.join(
+            args.save_dir, 
+            "{}_diffusion_{}_sample_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus)
+            )
+    os.makedirs(log_dir, exist_ok=True)
+    logger = utils.logger(
+        len(train_loader) * args.epochs, ["tb", "csv", "txt"], log_dir, args.ema_w
+    )
+
+    model_dir = os.path.join(
+        args.save_dir, 
+        "{}_diffusion_{}_sample_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
+        "ckpt"
+        )
+    os.makedirs(model_dir, exist_ok=True)
+    sample_dir = os.path.join(
+        args.save_dir, 
+        "{}_diffusion_{}_sample_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
+        "samples"
+        )
+    os.makedirs(sample_dir, exist_ok=True)
 
     # ema model
     args.ema_dict = copy.deepcopy(model.state_dict())
@@ -185,7 +220,7 @@ def main():
     for epoch in range(args.epochs):
         if sampler is not None:
             sampler.set_epoch(epoch)
-        train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args)
+        train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
         if not epoch % 1:
             sampled_images, _ = sample_N_images(
                 64,
@@ -196,38 +231,34 @@ def main():
                 args.batch_size,
                 metadata.num_channels,
                 metadata.image_size,
-                metadata.num_classes,
+                metadata.num_classes if args.class_cond else None,
                 args,
             )
             if args.local_rank == 0:
-                os.makedirs(os.path.join(args.save_dir, "samples"), exist_ok=True)
                 cv2.imwrite(
                     os.path.join(
-                        args.save_dir,
-                        "samples",
-                        f"{args.arch}_{args.dataset}-{args.diffusion_steps}_steps-{args.sampling_steps}-sampling_steps-class_condn_{args.class_cond}.png",
+                        sample_dir,
+                        f"epoch_{epoch}.png",
                     ),
                     np.concatenate(sampled_images, axis=1)[:, :, ::-1],
                 )
         if args.local_rank == 0:
-            os.makedirs(os.path.join(args.save_dir, "train_ckpt"), exist_ok=True)
             torch.save(
                 model.state_dict(),
                 os.path.join(
-                    args.save_dir,
-                    "train_ckpt",
-                    f"{args.arch}_{args.dataset}-epoch_{args.epochs}-timesteps_{args.diffusion_steps}-class_condn_{args.class_cond}.pt",
+                    model_dir,
+                    f"epoch_{epoch}.pth",
                 ),
             )
             torch.save(
                 args.ema_dict,
                 os.path.join(
-                    args.save_dir,
-                    "train_ckpt",
-                    f"{args.arch}_{args.dataset}-epoch_{args.epochs}-timesteps_{args.diffusion_steps}-class_condn_{args.class_cond}_ema_{args.ema_w}.pt",
+                    model_dir,
+                    f"epoch_{epoch}_ema_{args.ema_w}.pth",
                 ),
             )
 
 
 if __name__ == "__main__":
-    main()
+    args = get_args()
+    main(args)
