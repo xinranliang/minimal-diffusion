@@ -153,6 +153,7 @@ def main(args):
     # logging
     log_dir = os.path.join(
             args.save_dir, 
+            "color{}_gray{}".format(args.color, args.grayscale),
             "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus)
             )
     os.makedirs(log_dir, exist_ok=True)
@@ -206,12 +207,14 @@ def main(args):
 
     model_dir = os.path.join(
         args.save_dir, 
+        "color{}_gray{}".format(args.color, args.grayscale),
         "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
         "ckpt"
         )
     os.makedirs(model_dir, exist_ok=True)
     sample_dir = os.path.join(
         args.save_dir, 
+        "color{}_gray{}".format(args.color, args.grayscale),
         "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
         "samples"
         )
@@ -261,6 +264,11 @@ def main(args):
                     f"epoch_{epoch}_ema_{args.ema_w}.pth",
                 ),
             )
+    
+    if logger.csv_file is not None:
+        logger.csv_file.close()
+    if logger.txt_file is not None:
+        logger.txt_file.close()
 
 
 if __name__ == "__main__":

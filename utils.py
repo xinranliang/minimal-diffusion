@@ -68,9 +68,11 @@ class logger(object):
                     self.csv_writer = csv.DictWriter(self.csv_file, fieldnames=sorted(data_dict.keys()), restval=0.0)
                     self.csv_writer.writeheader()
                 self.csv_writer.writerow(data_dict)
+                self.csv_file.flush()
             
             if self.txt_file is not None:
                 self.txt_file.write("Step: {} loss: {} ema_loss: {} \n".format(step, data_dict["loss"], data_dict["ema_loss"]))
+                self.txt_file.flush()
 
         # dump to console
         if step % 100 == 0:

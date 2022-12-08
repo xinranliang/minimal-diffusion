@@ -141,6 +141,7 @@ dmypy.json
 *.pkl
 *output*
 *pth*
+*txt
 
 # data
 *datasets*
