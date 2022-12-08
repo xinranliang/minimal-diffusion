@@ -61,9 +61,11 @@ def get_args():
     parser.add_argument("--lr", type=float, default=0.0001)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--ema_w", type=float, default=0.9995)
+    parser.add_argument("--ckpt-sample-freq", type=int, default=50)
 
     # sampling/finetuning
-    parser.add_argument("--pretrained-ckpt", type=str, help="Pretrained model ckpt")
+    parser.add_argument("--pretrained-ckpt", type=str, help="Pretrained model ckpt directory")
+    parser.add_argument("--ckpt-name", type=str, help="name of cpretrained ckpt for sampling in logging")
     parser.add_argument("--delete-keys", nargs="+", help="Pretrained model ckpt")
     parser.add_argument(
         "--sampling-only",
@@ -147,6 +149,13 @@ def main(args):
         args.batch_size = args.batch_size // ngpus
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
+    
+    # logging
+    log_dir = os.path.join(
+            args.save_dir, 
+            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus)
+            )
+    os.makedirs(log_dir, exist_ok=True)
 
     # sampling
     if args.sampling_only:
@@ -167,11 +176,12 @@ def main(args):
             os.path.join(
                 args.save_dir,
                 "samples_loadckpt",
-                f"{args.arch}_{args.dataset}-{args.sampling_steps}-sampling_steps-{len(sampled_images)}_images-class_condn_{args.class_cond}.npz",
+                f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
             ),
             sampled_images,
             labels,
         )
+        print("Finish sampling from pretrained checkpoint! Return")
         return
 
     # Load dataset
@@ -190,25 +200,19 @@ def main(args):
             f"Training dataset loaded: Number of batches: {len(train_loader)}, Number of images: {len(train_set)}"
         )
     
-    # logging
-    log_dir = os.path.join(
-            args.save_dir, 
-            "{}_diffusion_{}_sample_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus)
-            )
-    os.makedirs(log_dir, exist_ok=True)
     logger = utils.logger(
         len(train_loader) * args.epochs, ["tb", "csv", "txt"], log_dir, args.ema_w
     )
 
     model_dir = os.path.join(
         args.save_dir, 
-        "{}_diffusion_{}_sample_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
+        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
         "ckpt"
         )
     os.makedirs(model_dir, exist_ok=True)
     sample_dir = os.path.join(
         args.save_dir, 
-        "{}_diffusion_{}_sample_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
+        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
         "samples"
         )
     os.makedirs(sample_dir, exist_ok=True)
@@ -221,7 +225,7 @@ def main(args):
         if sampler is not None:
             sampler.set_epoch(epoch)
         train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
-        if not epoch % 1:
+        if epoch > 0 and epoch % args.ckpt_sample_freq == 0:
             sampled_images, _ = sample_N_images(
                 64,
                 model,
@@ -242,7 +246,7 @@ def main(args):
                     ),
                     np.concatenate(sampled_images, axis=1)[:, :, ::-1],
                 )
-        if args.local_rank == 0:
+        if args.local_rank == 0 and epoch > 0 and epoch % args.ckpt_sample_freq == 0:
             torch.save(
                 model.state_dict(),
                 os.path.join(
