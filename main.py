@@ -172,11 +172,11 @@ def main(args):
             metadata.num_classes,
             args,
         )
-        os.makedirs(os.path.join(args.save_dir, "samples_loadckpt"), exist_ok=True)
+        os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
         np.savez(
             os.path.join(
-                args.save_dir,
-                "samples_loadckpt",
+                log_dir,
+                "samples",
                 f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
             ),
             sampled_images,
@@ -265,10 +265,41 @@ def main(args):
                 ),
             )
     
-    if logger.csv_file is not None:
-        logger.csv_file.close()
-    if logger.txt_file is not None:
-        logger.txt_file.close()
+    sampled_images, _ = sample_N_images(
+        64,
+        model,
+        diffusion,
+        None,
+        args.sampling_steps,
+        args.batch_size,
+        metadata.num_channels,
+        metadata.image_size,
+        metadata.num_classes if args.class_cond else None,
+        args,
+    )
+    if args.local_rank == 0:
+        cv2.imwrite(
+            os.path.join(
+                sample_dir,
+                "epoch_final.png",
+            ),
+            np.concatenate(sampled_images, axis=1)[:, :, ::-1],
+        )
+
+    torch.save(
+        model.state_dict(),
+        os.path.join(
+            model_dir,
+            "epoch_final.pth",
+        ),
+    )
+    torch.save(
+        args.ema_dict,
+        os.path.join(
+            model_dir,
+            f"epoch_final_ema_{args.ema_w}.pth",
+        ),
+    )
 
 
 if __name__ == "__main__":
