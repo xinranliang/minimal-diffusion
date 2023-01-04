@@ -14,7 +14,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_color_images, sample_gray_images
 import model.unets as unets
 import utils
 
@@ -78,6 +78,18 @@ def get_args():
         type=int,
         default=50000,
         help="Number of images required to sample from the model",
+    )
+    parser.add_argument(
+        "--sampling-color-only",
+        action="store_true",
+        default=False,
+        help="No training, just sample color images (will save them in --save-dir)",
+    )
+    parser.add_argument(
+        "--sampling-gray-only",
+        action="store_true",
+        default=False,
+        help="No training, just sample gray images (will save them in --save-dir)",
     )
 
     # misc
@@ -183,6 +195,56 @@ def main(args):
             labels,
         )
         print("Finish sampling from pretrained checkpoint! Return")
+        return
+    if args.sampling_color_only:
+        sampled_images, labels = sample_color_images(
+            args.num_sampled_images,
+            model,
+            diffusion,
+            None,
+            args.sampling_steps,
+            args.batch_size,
+            metadata.num_channels,
+            metadata.image_size,
+            metadata.num_classes,
+            args,
+        )
+        os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+        np.savez(
+            os.path.join(
+                log_dir,
+                "samples",
+                f"{args.ckpt_name}_num{args.num_sampled_images}_color.npz",
+            ),
+            sampled_images,
+            labels,
+        )
+        print("Finish sampling color images from pretrained checkpoint! Return")
+        return
+    if args.sampling_gray_only:
+        sampled_images, labels = sample_gray_images(
+            args.num_sampled_images,
+            model,
+            diffusion,
+            None,
+            args.sampling_steps,
+            args.batch_size,
+            metadata.num_channels,
+            metadata.image_size,
+            metadata.num_classes,
+            args,
+        )
+        os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+        np.savez(
+            os.path.join(
+                log_dir,
+                "samples",
+                f"{args.ckpt_name}_num{args.num_sampled_images}_gray.npz",
+            ),
+            sampled_images,
+            labels,
+        )
+        print("Finish sampling gray images from pretrained checkpoint! Return")
         return
 
     # Load dataset

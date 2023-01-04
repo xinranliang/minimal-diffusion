@@ -133,7 +133,7 @@ def calculate_kid_given_paths(paths, batch_size, cuda, dims, model_type='incepti
         if os.path.isdir(p):
             pths.append(p)
         elif p.endswith('.npy'):
-            np_imgs = np.load(p)
+            np_imgs = np.load(p).astype(np.float64)
             if np_imgs.shape[0] > 50000: np_imgs = np_imgs[np.random.permutation(np.arange(np_imgs.shape[0]))][:50000]
             pths.append(np_imgs)
 

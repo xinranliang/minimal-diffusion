@@ -270,3 +270,111 @@ def sample_N_images(
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
     samples = (127.5 * (samples + 1)).astype(np.uint8)
     return (samples, np.concatenate(labels) if args.class_cond else None)
+
+
+def sample_color_images(
+    N,
+    model,
+    diffusion,
+    xT=None,
+    sampling_steps=250,
+    batch_size=64,
+    num_channels=3,
+    image_size=32,
+    num_classes=None,
+    args=None,
+):
+
+    samples, labels, num_samples = [], [], 0
+    num_processes, group = dist.get_world_size(), dist.group.WORLD
+    with tqdm(total=N) as pbar:
+        while num_samples < N:
+            if xT is None:
+                xT = (
+                    torch.randn(batch_size, num_channels, image_size, image_size)
+                    .float()
+                    .to(args.device)
+                )
+            if args.class_cond:
+                y = torch.randint(num_classes, (len(xT),), dtype=torch.int64).to(
+                    args.device
+                )
+            else:
+                y = None
+            gen_images = diffusion.sample_from_reverse_process(
+                model, xT, sampling_steps, {"y": y}, args.ddim
+            )
+            samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
+            dist.all_gather(samples_list, gen_images, group)
+            curr_samples = torch.cat(samples_list).detach() # torch tensor: (num_samples x num_channel x height x width)
+            channel_std = torch.std(curr_samples, dim=1).reshape(curr_samples.shape[0], curr_samples.shape[2] * curr_samples.shape[3]).mean(-1) # (num_samples x 1 x height x width)
+            index_select = torch.nonzero(channel_std >= 1 / 127.5).reshape(-1)
+            select_samples = torch.index_select(curr_samples, dim=0, index=index_select)
+            samples.append(select_samples.cpu().numpy())
+
+            if args.class_cond:
+                labels_list = [torch.zeros_like(y) for _ in range(num_processes)]
+                dist.all_gather(labels_list, y, group)
+                curr_labels = torch.cat(labels_list).detach()
+                select_labels = torch.index_select(curr_labels, dim=0, index=index_select)
+                labels.append(select_labels.cpu().numpy())
+
+            num_samples += index_select.shape[0]
+            pbar.update(index_select.shape[0])
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
+    samples = (127.5 * (samples + 1)).astype(np.uint8)
+    return (samples, np.concatenate(labels) if args.class_cond else None)
+
+
+def sample_gray_images(
+    N,
+    model,
+    diffusion,
+    xT=None,
+    sampling_steps=250,
+    batch_size=64,
+    num_channels=3,
+    image_size=32,
+    num_classes=None,
+    args=None,
+):
+
+    samples, labels, num_samples = [], [], 0
+    num_processes, group = dist.get_world_size(), dist.group.WORLD
+    with tqdm(total=N) as pbar:
+        while num_samples < N:
+            if xT is None:
+                xT = (
+                    torch.randn(batch_size, num_channels, image_size, image_size)
+                    .float()
+                    .to(args.device)
+                )
+            if args.class_cond:
+                y = torch.randint(num_classes, (len(xT),), dtype=torch.int64).to(
+                    args.device
+                )
+            else:
+                y = None
+            gen_images = diffusion.sample_from_reverse_process(
+                model, xT, sampling_steps, {"y": y}, args.ddim
+            )
+            samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
+            dist.all_gather(samples_list, gen_images, group)
+            curr_samples = torch.cat(samples_list).detach() # torch tensor: (num_samples x num_channel x height x width)
+            channel_std = torch.std(curr_samples, dim=1).reshape(curr_samples.shape[0], curr_samples.shape[2] * curr_samples.shape[3]).mean(-1) # (num_samples x 1 x height x width)
+            index_select = torch.nonzero(channel_std < 1 / 127.5).reshape(-1)
+            select_samples = torch.index_select(curr_samples, dim=0, index=index_select)
+            samples.append(select_samples.cpu().numpy())
+
+            if args.class_cond:
+                labels_list = [torch.zeros_like(y) for _ in range(num_processes)]
+                dist.all_gather(labels_list, y, group)
+                curr_labels = torch.cat(labels_list).detach()
+                select_labels = torch.index_select(curr_labels, dim=0, index=index_select)
+                labels.append(select_labels.cpu().numpy())
+
+            num_samples += index_select.shape[0]
+            pbar.update(index_select.shape[0])
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
+    samples = (127.5 * (samples + 1)).astype(np.uint8)
+    return (samples, np.concatenate(labels) if args.class_cond else None)
