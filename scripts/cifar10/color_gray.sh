@@ -1,13 +1,17 @@
 python metrics/convert_data.py --dataset cifar10 --date 2022-12-08 \
---train-color 0.99 --train-gray 0.01
+--train-color 0.99 --train-gray 0.01 --num-samples 50000 --sample-color
 
 python metrics/convert_data.py --dataset cifar10 --date 2022-12-08 \
---train-color 0.95 --train-gray 0.05 
+--train-color 0.95 --train-gray 0.05 --num-samples 50000 --sample-color
 
 python metrics/convert_data.py --dataset cifar10 --date 2022-12-08 \
---train-color 0.05 --train-gray 0.95 
+--train-color 0.95 --train-gray 0.05 --num-samples 10000 --sample-gray
 
 python metrics/convert_data.py --dataset cifar10 --date 2022-12-08 \
---train-color 0.01 --train-gray 0.99 
+--train-color 0.05 --train-gray 0.95 --num-samples 50000 --sample-gray
 
-python metrics/convert_data.py --dataset cifar10 --proc-real
+python metrics/convert_data.py --dataset cifar10 --date 2022-12-08 \
+--train-color 0.05 --train-gray 0.95 --num-samples 10000 --sample-color
+
+python metrics/convert_data.py --dataset cifar10 --date 2022-12-08 \
+--train-color 0.01 --train-gray 0.99 --num-samples 50000 --sample-gray
