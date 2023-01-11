@@ -134,7 +134,7 @@ def calculate_kid_given_paths(paths, batch_size, cuda, dims, model_type='incepti
             pths.append(p)
         elif p.endswith('.npy'):
             np_imgs = np.load(p).astype(np.float64)
-            if np_imgs.shape[0] > 50000: np_imgs = np_imgs[np.random.permutation(np.arange(np_imgs.shape[0]))][:50000]
+            if np_imgs.shape[0] > 25000: np_imgs = np_imgs[np.random.permutation(np.arange(np_imgs.shape[0]))][:10000]
             pths.append(np_imgs)
 
     if model_type == 'inception':
@@ -305,4 +305,4 @@ if __name__ == '__main__':
 
     results = calculate_kid_given_paths(paths, args.batch_size, args.gpu != '', args.dims, model_type=args.model)
     for p, m, s in results:
-        print('KID (%s): %.3f (%.3f)' % (p, m, s))
+        print('KID (%s): %.6f (%.6f)' % (p, m, s))

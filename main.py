@@ -184,16 +184,28 @@ def main(args):
             metadata.num_classes,
             args,
         )
-        os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-        np.savez(
-            os.path.join(
-                log_dir,
-                "samples",
-                f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
-            ),
-            sampled_images,
-            labels,
-        )
+        if "ema" in args.ckpt_name:
+            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples_ema",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
+                ),
+                sampled_images,
+                labels,
+            )
+        else:
+            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
+                ),
+                sampled_images,
+                labels,
+            )
         print("Finish sampling from pretrained checkpoint! Return")
         return
     if args.sampling_color_only:
