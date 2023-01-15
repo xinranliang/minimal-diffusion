@@ -236,13 +236,26 @@ def main(args):
     ratio_grays = np.array(ratio_grays)
 
     if args.local_rank == 0:
-        print("Aggregating bootstrap statistics:")
+        print("Aggregating bootstrap statistics from {} samples:".format(args.num_bootstrap))
 
-        # 90% CI
-        low_color, high_color = np.quantile(ratio_colors, 5.0), np.quantile(ratio_colors, 95.0)
-        low_gray, high_gray = np.quantile(ratio_grays, 5.0), np.quantile(ratio_grays, 95.0)
+        # 95% CI
+        low_color, high_color = np.quantile(ratio_colors, 0.025), np.quantile(ratio_colors, 0.975)
+        low_gray, high_gray = np.quantile(ratio_grays, 0.025), np.quantile(ratio_grays, 0.975)
         print("90% CI for color percentage: (%.2f, %.2f)".format(low_color * 100, high_color * 100))
         print("90% CI for gray percentage: (%.2f, %.2f)".format(low_gray * 100, high_gray * 100))
+
+        # 90% CI
+        low_color, high_color = np.quantile(ratio_colors, 0.05), np.quantile(ratio_colors, 0.95)
+        low_gray, high_gray = np.quantile(ratio_grays, 0.05), np.quantile(ratio_grays, 0.95)
+        print("90% CI for color percentage: (%.2f, %.2f)".format(low_color * 100, high_color * 100))
+        print("90% CI for gray percentage: (%.2f, %.2f)".format(low_gray * 100, high_gray * 100))
+
+        print("Aggregating summary statistics: mean (std)")
+
+        # mean, standard deviation
+        percent_colors, percent_grays = ratio_colors * 100, ratio_grays * 100
+        print("Color percentage: {%.2f} ({%.2f})".format(np.mean(percent_colors), np.std(percent_colors)))
+        print("Gray percentage: {%.2f} ({%.2f})".format(np.mean(percent_grays), np.std(percent_grays)))
 
 
 if __name__ == "__main__":
