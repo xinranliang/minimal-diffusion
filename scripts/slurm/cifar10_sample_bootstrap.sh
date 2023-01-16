@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1            # tasks requested
 #SBATCH --cpus-per-task=32     # Specify the number of CPUs your task will need.
 #SBATCH --gres=gpu:rtx_3090:8          # the number of GPUs requested
-#SBATCH --mem=24G             # memory 
+#SBATCH --mem=48G             # memory 
 
 #SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-01-14/cifar10_color0.99_gray0.01_sample_bootstrap.txt            # where stdout and stderr will write to
 #SBATCH -t 12:00:00           # time requested in hour:minute:second

@@ -223,7 +223,7 @@ def main(args):
 
                 num_color = np.sum(channel_std >= args.threshold)
                 num_gray = np.sum(channel_std < args.threshold)
-                ratio_color, ratio_gray = num_color / args.num_sampled_images, num_gray / args.num_sampled_images
+                ratio_color, ratio_gray = num_color / args.num_sampled_images * 100, num_gray / args.num_sampled_images * 100
 
                 ratio_colors.append(ratio_color)
                 ratio_grays.append(ratio_gray)
@@ -232,8 +232,8 @@ def main(args):
                     pbar.update(1)
     
     # compute confidence interval from empirical distribution
-    ratio_colors = np.array(ratio_colors)
-    ratio_grays = np.array(ratio_grays)
+    ratio_colors = np.array(ratio_colors, dtype=np.float64)
+    ratio_grays = np.array(ratio_grays, dtype=np.float64)
 
     if args.local_rank == 0:
         print("Aggregating bootstrap statistics from {} samples:".format(args.num_bootstrap))
@@ -241,21 +241,20 @@ def main(args):
         # 95% CI
         low_color, high_color = np.quantile(ratio_colors, 0.025), np.quantile(ratio_colors, 0.975)
         low_gray, high_gray = np.quantile(ratio_grays, 0.025), np.quantile(ratio_grays, 0.975)
-        print("90% CI for color percentage: (%.2f, %.2f)".format(low_color * 100, high_color * 100))
-        print("90% CI for gray percentage: (%.2f, %.2f)".format(low_gray * 100, high_gray * 100))
+        print("90% CI for color percentage: ({}, {})".format(low_color, high_color))
+        print("90% CI for gray percentage: ({}, {})".format(low_gray, high_gray))
 
         # 90% CI
         low_color, high_color = np.quantile(ratio_colors, 0.05), np.quantile(ratio_colors, 0.95)
         low_gray, high_gray = np.quantile(ratio_grays, 0.05), np.quantile(ratio_grays, 0.95)
-        print("90% CI for color percentage: (%.2f, %.2f)".format(low_color * 100, high_color * 100))
-        print("90% CI for gray percentage: (%.2f, %.2f)".format(low_gray * 100, high_gray * 100))
+        print("90% CI for color percentage: ({}, {})".format(low_color, high_color))
+        print("90% CI for gray percentage: ({}, {})".format(low_gray, high_gray))
 
         print("Aggregating summary statistics: mean (std)")
 
         # mean, standard deviation
-        percent_colors, percent_grays = ratio_colors * 100, ratio_grays * 100
-        print("Color percentage: {%.2f} ({%.2f})".format(np.mean(percent_colors), np.std(percent_colors)))
-        print("Gray percentage: {%.2f} ({%.2f})".format(np.mean(percent_grays), np.std(percent_grays)))
+        print("Color percentage: {} ({})".format(np.mean(ratio_colors), np.std(ratio_colors)))
+        print("Gray percentage: {} ({})".format(np.mean(ratio_grays), np.std(ratio_grays)))
 
 
 if __name__ == "__main__":

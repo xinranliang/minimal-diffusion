@@ -117,12 +117,19 @@ def get_args():
     elif args.sample_gray:
         sample_str = "gray"
     else:
-        raise NotImplementedError
-    args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+        sample_str = "none"
+        
+    if sample_str == "none":
+        args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
                         args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
                         args.diffusion_config, "samples", 
-                        "{}_color{}_gray{}_epoch_{}_num{}_{}.npz".format(args.dataset, args.train_color, args.train_gray, 950, args.num_samples, sample_str))
-    
+                        "{}_color{}_gray{}_epoch_{}_num{}.npz".format(args.dataset, args.train_color, args.train_gray, 950, args.num_samples))
+    else:
+        args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+                            args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
+                            args.diffusion_config, "samples", 
+                            "{}_color{}_gray{}_epoch_{}_num{}_{}.npz".format(args.dataset, args.train_color, args.train_gray, 950, args.num_samples, sample_str))
+        
     return args
 
 

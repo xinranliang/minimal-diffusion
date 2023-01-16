@@ -1,3 +1,10 @@
+echo "Evaluating precision recall: Training with 1.0 color and 0.0 gray; Sample color"
+python metrics/precision_recall.py --true ./datasets/cifar10/test_color.npy \
+--fake ./logs/2022-12-08/cifar10/color1.0_gray0.0/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/samples/cifar10_color1.0_gray0.0_epoch_950_num50000_images.npy \
+--gpu 0 --batch-size 500
+# precision:  0.7352
+# recall:  0.5451
+
 echo "Evaluating precision recall: Training with 0.99 color and 0.01 gray; Sample color"
 python metrics/precision_recall.py --true ./datasets/cifar10/test_color.npy \
 --fake ./logs/2022-12-08/cifar10/color0.99_gray0.01/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/samples/cifar10_color0.99_gray0.01_epoch_950_num50000_color_images.npy \
@@ -54,6 +61,20 @@ python metrics/precision_recall.py --true ./datasets/cifar10/test_color.npy \
 # precision: 0.729
 # recall: 0.4727
 
+echo "Evaluating precision recall: Training with 0.0 color and 1.0 gray; Sample gray"
+python metrics/precision_recall.py --true ./datasets/cifar10/test_gray.npy \
+--fake ./logs/2022-12-08/cifar10/color0.0_gray1.0/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/samples/cifar10_color0.0_gray1.0_epoch_950_num50000_images.npy \
+--gpu 0 --batch-size 500
+# precision: 0.738
+# recall: 0.62
+
+
+echo "Evaluating precision recall: Training with 1.0 color and 0.0 gray; Sample color"
+python metrics/precision_recall.py --true ./datasets/cifar10/train_color.npy \
+--fake ./logs/2022-12-08/cifar10/color1.0_gray0.0/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/samples/cifar10_color1.0_gray0.0_epoch_950_num50000_images.npy \
+--gpu 0 --batch-size 500
+# precision:  0.738
+# recall:  0.5492
 
 echo "Evaluating precision recall: Training with 0.99 color and 0.01 gray; Sample color"
 python metrics/precision_recall.py --true ./datasets/cifar10/train_color.npy \
@@ -110,3 +131,10 @@ python metrics/precision_recall.py --true ./datasets/cifar10/train_color.npy \
 --gpu 0 --batch-size 500
 # precision: 0.7277
 # recall: 0.4846
+
+echo "Evaluating precision recall: Training with 0.0 color and 1.0 gray; Sample gray"
+python metrics/precision_recall.py --true ./datasets/cifar10/train_gray.npy \
+--fake ./logs/2022-12-08/cifar10/color0.0_gray1.0/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/samples/cifar10_color0.0_gray1.0_epoch_950_num50000_images.npy \
+--gpu 0 --batch-size 500
+# precision: 0.7473
+# recall: 0.616
