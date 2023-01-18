@@ -11,11 +11,11 @@ def plot_num_dist():
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(10, 8))
 
     # [0, 0]
-    color_vals = [99, 49704 / 500]
-    gray_vals = [1, 296 / 500]
+    color_vals, color_stds = [99, 99.43], [0.0, 0.02 * 1.96]
+    gray_vals, gray_stds = [1, 0.57], [0.0, 0.02 * 1.96]
 
-    rects1 = ax[0, 0].bar(x - width/2, color_vals, width, label='Color')
-    rects2 = ax[0, 0].bar(x + width/2, gray_vals, width, label='Gray')
+    rects1 = ax[0, 0].bar(x - width/2, color_vals, yerr=color_stds, width=width, label='Color')
+    rects2 = ax[0, 0].bar(x + width/2, gray_vals, yerr=gray_stds, width=width, label='Gray')
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[0, 0].set_ylabel('Number of Images (%)')
@@ -28,11 +28,11 @@ def plot_num_dist():
     ax[0, 0].bar_label(rects2, label_type="edge", fmt="%.2f")
 
     # [0, 1]
-    color_vals = [95, 47819 / 500]
-    gray_vals = [5, 2181 / 500]
+    color_vals, color_stds = [95, 95.52], [0.0, 0.04 * 1.96]
+    gray_vals, gray_stds = [5, 4.48], [0.0, 0.04 * 1.96]
 
-    rects1 = ax[0, 1].bar(x - width/2, color_vals, width, label='Color')
-    rects2 = ax[0, 1].bar(x + width/2, gray_vals, width, label='Gray')
+    rects1 = ax[0, 1].bar(x - width/2, color_vals, yerr=color_stds, width=width, label='Color')
+    rects2 = ax[0, 1].bar(x + width/2, gray_vals, yerr=gray_stds, width=width, label='Gray')
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[0, 1].set_ylabel('Number of Images (%)')
@@ -45,11 +45,11 @@ def plot_num_dist():
     ax[0, 1].bar_label(rects2, label_type="edge", fmt="%.2f")
 
     # [1, 0]
-    color_vals = [5, 2171 / 500]
-    gray_vals = [95, 47829 / 500]
+    color_vals, color_stds = [5, 4.33], [0.0, 0.06 * 1.96]
+    gray_vals, gray_stds = [95, 95.67], [0.0, 0.06 * 1.96]
 
-    rects1 = ax[1, 0].bar(x - width/2, color_vals, width, label='Color')
-    rects2 = ax[1, 0].bar(x + width/2, gray_vals, width, label='Gray')
+    rects1 = ax[1, 0].bar(x - width/2, color_vals, yerr=color_stds, width=width, label='Color')
+    rects2 = ax[1, 0].bar(x + width/2, gray_vals, yerr=gray_stds, width=width, label='Gray')
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[1, 0].set_ylabel('Number of Images (%)')
@@ -62,11 +62,11 @@ def plot_num_dist():
     ax[1, 0].bar_label(rects2, label_type="edge", fmt="%.2f")
 
     # [1, 1]
-    color_vals = [1, 125 / 500]
-    gray_vals = [99, 49875 / 500]
+    color_vals, color_stds = [1, 0.26], [0.0, 0.02 * 1.96]
+    gray_vals, gray_stds = [99, 99.74], [0.0, 0.02 * 1.96]
 
-    rects1 = ax[1, 1].bar(x - width/2, color_vals, width, label='Color')
-    rects2 = ax[1, 1].bar(x + width/2, gray_vals, width, label='Gray')
+    rects1 = ax[1, 1].bar(x - width/2, color_vals, yerr=color_stds, width=width, label='Color')
+    rects2 = ax[1, 1].bar(x + width/2, gray_vals, yerr=gray_stds, width=width, label='Gray')
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax[1, 1].set_ylabel('Number of Images (%)')
@@ -84,8 +84,8 @@ def plot_num_dist():
 
     plt.show()
 
-    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2022-12-08/cifar10/figures", "num_dist.png"), dpi=80)
-    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2022-12-08/cifar10/figures", "num_dist.pdf"), dpi=80)
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2022-12-08/cifar10/figures", "num_dist_boostrap.png"), dpi=80)
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2022-12-08/cifar10/figures", "num_dist_boostrap.pdf"), dpi=80)
 
 
 if __name__ == "__main__":
