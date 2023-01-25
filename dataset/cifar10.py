@@ -1,4 +1,5 @@
 import os
+import pickle
 import tempfile
 
 import torchvision
@@ -28,26 +29,43 @@ CLASSES = (
 )
 
 
-def main():
-    for split in ["train", "test"]:
-        out_dir = f"/home/xinranliang/projects/minimal-diffusion/datasets/cifar_raw/cifar_{split}"
-        if os.path.exists(out_dir):
-            print(f"skipping split {split} since {out_dir} already exists.")
-            continue
+def generate_index_cifar10():
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    for color, gray in zip([0.99, 0.95, 0.9, 0.1, 0.05, 0.01], [0.01, 0.05, 0.1, 0.9, 0.95, 0.99]):
+        cifar10 = CIFAR10_Custom(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+            train=True,
+            transform=transform_train,
+            target_transform=None,
+            download=False,
+            color_ratio=color,
+            grayscale_ratio=gray,
+            split=True # whether we're performing one-off splitting
+        )
 
-        print("downloading...")
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            dataset = torchvision.datasets.CIFAR10(
-                root=tmp_dir, train=split == "train", download=True
-            )
-
-        print("dumping images...")
-        os.makedirs(out_dir, exist_ok=True)
-        for i in tqdm(range(len(dataset))):
-            image, label = dataset[i]
-            os.makedirs(os.path.join(out_dir, CLASSES[label]), exist_ok=True)
-            filename = os.path.join(out_dir, f"{CLASSES[label]}/{i:05d}.png")
-            image.save(filename)
+def check_cifar10_index():
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    for color, gray in zip([1.0, 0.99, 0.95, 0.9, 0.1, 0.05, 0.01, 0.0], [0.0, 0.01, 0.05, 0.1, 0.9, 0.95, 0.99, 1.0]):
+        cifar10 = CIFAR10_Custom(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+            train=True,
+            transform=transform_train,
+            target_transform=None,
+            download=False,
+            color_ratio=color,
+            grayscale_ratio=gray,
+            split=False # whether we're performing one-off splitting
+        )
 
 
 class CIFAR10_Custom(datasets.CIFAR10):
@@ -58,8 +76,9 @@ class CIFAR10_Custom(datasets.CIFAR10):
         transform,
         target_transform,
         download,
-        color_ratio, 
-        grayscale_ratio
+        color_ratio = None, 
+        grayscale_ratio = None,
+        split = False
     ):
         super().__init__(root, train, transform, target_transform, download=download)
 
@@ -68,12 +87,44 @@ class CIFAR10_Custom(datasets.CIFAR10):
         self.color_ratio = color_ratio
         self.grayscale_ratio = grayscale_ratio
 
-        # randomly sample color v.s. grayscale classes
-        self.color_index = np.random.choice(len(self.data), int(len(self.data) * self.color_ratio), replace=False)
-        self.grayscale_index = [no_idx for no_idx in range(len(self.data)) if no_idx not in self.color_index]
+        if split == True and color_ratio is not None and grayscale_ratio is not None:
+            # randomly sample color v.s. grayscale classes
 
-        assert len(self.color_index) == int(len(self.data) * self.color_ratio)
-        assert len(self.grayscale_index) == int(len(self.data) * self.grayscale_ratio)
+            self.color_index = np.random.choice(len(self.data), int(len(self.data) * self.color_ratio), replace=False)
+            self.grayscale_index = [no_idx for no_idx in range(len(self.data)) if no_idx not in self.color_index]
+            self.grayscale_index = np.array(self.grayscale_index, dtype=int)
+            print(self.color_index.shape, self.grayscale_index.shape)
+            assert len(self.color_index) == int(len(self.data) * self.color_ratio)
+            assert len(self.grayscale_index) == int(len(self.data) * self.grayscale_ratio)
+
+            idx_dict = {"color_index": self.color_index, "gray_index": self.grayscale_index}
+
+            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_split.pkl".format(self.color_ratio, self.grayscale_ratio))
+            with open(file_path, "wb") as f:
+                pickle.dump(idx_dict, f)
+        
+        elif split == False and color_ratio == 1.0 and grayscale_ratio == 0.0:
+            # all color
+            self.color_index = range(len(self.data))
+            self.grayscale_index = []
+        elif split == False and color_ratio == 0.0 and grayscale_ratio == 1.0:
+            # all gray
+            self.color_index = []
+            self.grayscale_index = range(len(self.data))
+        
+        elif split == False:
+            split_file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_split.pkl".format(self.color_ratio, self.grayscale_ratio))
+            with open(split_file_path, "rb") as f:
+                file_load = pickle.load(f)
+            print("Loading color/gray split from file path {}".format(split_file_path))
+            self.color_index = file_load["color_index"]
+            self.grayscale_index = file_load["gray_index"]
+            # print(self.color_index.shape)
+            # print(self.grayscale_index.shape)
+        
+        else:
+            raise NotImplementedError
+            
     
 
     def __getitem__(self, index):
@@ -108,20 +159,6 @@ class CIFAR10_Custom(datasets.CIFAR10):
     
 
 if __name__ == "__main__":
-    # main()
-
-    transform_train = transforms.Compose(
-            [
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-            ]
-        )
-
-    # construct custom cifar10 dataset
-    cifar10_custom = CIFAR10_Custom("/home/xinranliang/projects/minimal-diffusion/datasets/cifar_color", True, transform_train, None, False, 0.05, 0.95)
-
-    # build data loader
-    data_loader = DataLoader(cifar10_custom, batch_size=4, shuffle=True, num_workers=4)
-
-    image, label = next(iter(data_loader))
+    generate_index_cifar10()
+    check_cifar10_index()
     

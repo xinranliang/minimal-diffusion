@@ -44,3 +44,17 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_
     --color 0.99 --grayscale 0.01 \
     --ckpt-name cifar10_color0.99_gray0.01_epoch_950_ema \
     --pretrained-ckpt ./logs/2022-12-08/cifar10/color0.99_gray0.01/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/ckpt/epoch_950_ema_0.9995.pth 
+
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
+    --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-only --sampling-steps 250 \
+    --data-dir ./datasets --save-dir ./logs/ --date 2022-12-08 \
+    --color 1.0 --grayscale 0.0 \
+    --ckpt-name cifar10_color1_gray0_epoch_1000_ema \
+    --pretrained-ckpt ./logs/2022-12-08/cifar10/color1.0_gray0.0/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/ckpt/epoch_final_ema.pth
+
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
+    --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-only --sampling-steps 250 \
+    --data-dir ./datasets --save-dir ./logs/ --date 2022-12-08 \
+    --color 0.0 --grayscale 1.0 \
+    --ckpt-name cifar10_color0_gray1_epoch_1000_ema \
+    --pretrained-ckpt ./logs/2022-12-08/cifar10/color0.0_gray1.0/UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512/ckpt/epoch_final_ema.pth

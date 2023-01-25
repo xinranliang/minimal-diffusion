@@ -249,7 +249,7 @@ def calculate_fid_given_paths(paths, batch_size, cuda, dims, bootstrap=True, n_b
         elif p.endswith('.npy'):
             np_imgs = np.load(p).astype(np.float64)
             if np_imgs.shape[0] > 25000:
-                np_imgs = np_imgs[:10000]
+                np_imgs = np_imgs[:50000]
             pths.append(np_imgs)
 
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]

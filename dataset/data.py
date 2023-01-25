@@ -22,6 +22,7 @@ def get_metadata(name, color, grayscale):
                 "num_channels": 3,
                 "color_ratio": color,
                 "grayscale_ratio": grayscale,
+                "split": False
             }
         )
     elif name == "celeba":
@@ -78,7 +79,8 @@ def get_dataset(name, data_dir, metadata):
             transform=transform_train,
             target_transform=None,
             color_ratio=metadata.color_ratio,
-            grayscale_ratio = metadata.grayscale_ratio
+            grayscale_ratio = metadata.grayscale_ratio,
+            split = False
         )
     elif name == "celeba":
         # celebA has a large number of images, avoiding randomcropping.

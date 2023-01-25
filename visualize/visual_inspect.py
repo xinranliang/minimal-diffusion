@@ -54,14 +54,20 @@ def main():
     samples = save_file['arr_0'][index] # shape = num_samples x height x width x n_channel
     samples = np.split(samples, np.sqrt(args.num_visualize).astype(int), axis=0)
 
-    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+    if args.sample_str == "none":
+        file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
                             args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
                             args.diffusion_config, "figures",
-                            "{}_color{}_gray{}_epoch_{}_{}.png".format(args.dataset, args.train_color, args.train_gray, 950, args.sample_str))
+                            "{}_color{}_gray{}_epoch_{}.png".format(args.dataset, args.train_color, args.train_gray, 950))
+    else:
+        file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+                                args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
+                                args.diffusion_config, "figures",
+                                "{}_color{}_gray{}_epoch_{}_{}.png".format(args.dataset, args.train_color, args.train_gray, 950, args.sample_str))
 
     cv2.imwrite(
         file_path,
-        np.concatenate(np.concatenate(samples, axis=1), axis=1)
+        np.concatenate(np.concatenate(samples, axis=1), axis=1)[:, :, ::-1]
     )
 
 

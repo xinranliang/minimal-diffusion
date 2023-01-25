@@ -26,7 +26,7 @@ def process_real_dataset(dataset_name, dataset_dir="./datasets"):
             labels
         )
         np.save(
-            os.path.join(dataset_dir, "train_color.npy"),
+            os.path.join(dataset_dir, "real_color.npy"),
             batch_array
         )
 
@@ -39,41 +39,7 @@ def process_real_dataset(dataset_name, dataset_dir="./datasets"):
         for i in range(3):
             gray_array[:, i, :, :] = avg_channel
         np.save(
-            os.path.join(dataset_dir, "train_gray.npy"),
-            gray_array
-        )
-
-        dataset = datasets.CIFAR10(
-            root=dataset_dir,
-            train=False,
-            transform=transforms.ToTensor()
-        )
-        loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False)
-        batch_array, labels = next(iter(loader))
-
-        batch_array = batch_array.numpy()
-        labels = labels.numpy()
-
-        np.savez(
-            os.path.join(dataset_dir, "test_split.npz"),
-            batch_array,
-            labels
-        )
-        np.save(
-            os.path.join(dataset_dir, "test_color.npy"),
-            batch_array
-        )
-
-        gray_array = np.zeros(batch_array.shape)
-        R = batch_array[:, 0, :, :] 
-        G = batch_array[:, 1, :, :] 
-        B = batch_array[:, 2, :, :] 
-
-        avg_channel = R * 0.299 + G * 0.587 + B * 0.114
-        for i in range(3):
-            gray_array[:, i, :, :] = avg_channel
-        np.save(
-            os.path.join(dataset_dir, "test_gray.npy"),
+            os.path.join(dataset_dir, "real_gray.npy"),
             gray_array
         )
 

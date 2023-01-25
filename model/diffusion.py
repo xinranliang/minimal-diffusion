@@ -267,7 +267,7 @@ def sample_N_images(
             samples.append(torch.cat(samples_list).detach().cpu().numpy())
             num_samples += len(xT) * num_processes
             pbar.update(1)
-    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
     samples = (127.5 * (samples + 1)).astype(np.uint8)
     return (samples, np.concatenate(labels) if args.class_cond else None)
 
