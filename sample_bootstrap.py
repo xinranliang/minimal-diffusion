@@ -236,19 +236,7 @@ def main(args):
     ratio_grays = np.array(ratio_grays, dtype=np.float64)
 
     if args.local_rank == 0:
-        print("Aggregating bootstrap statistics from {} samples:".format(args.num_bootstrap))
-
-        # 95% CI
-        low_color, high_color = np.quantile(ratio_colors, 0.025), np.quantile(ratio_colors, 0.975)
-        low_gray, high_gray = np.quantile(ratio_grays, 0.025), np.quantile(ratio_grays, 0.975)
-        print("90% CI for color percentage: ({}, {})".format(low_color, high_color))
-        print("90% CI for gray percentage: ({}, {})".format(low_gray, high_gray))
-
-        # 90% CI
-        low_color, high_color = np.quantile(ratio_colors, 0.05), np.quantile(ratio_colors, 0.95)
-        low_gray, high_gray = np.quantile(ratio_grays, 0.05), np.quantile(ratio_grays, 0.95)
-        print("90% CI for color percentage: ({}, {})".format(low_color, high_color))
-        print("90% CI for gray percentage: ({}, {})".format(low_gray, high_gray))
+        print("Aggregating bootstrap statistics for ckpt {} from {} samples:".format(args.ckpt_name, args.num_bootstrap))
 
         print("Aggregating summary statistics: mean (std)")
 
