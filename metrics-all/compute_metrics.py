@@ -11,7 +11,6 @@ from torch.utils.data import DataLoader
 from cleanfid import fid
 from cleanfid.fid import get_folder_features
 from cleanfid.features import get_reference_statistics, build_feature_extractor
-from precision_recall import knn_precision_recall_features
 
 
 def array_to_image(path, folder="./logs/temp"):
@@ -37,20 +36,6 @@ def array_to_image(path, folder="./logs/temp"):
             images[idx, :, :, ::-1]
         )
 
-def compute_precision_recall(args):
-    feat_model = build_feature_extractor(args.mode, args.device)
-    # features
-    fake_features = get_folder_features("./logs/temp/", feat_model, batch_size = args.batch_size, num_workers = args.num_gpus * 4, mode=args.mode, device=args.device)
-    real_features = get_reference_statistics(args.dataset, args.resolution, args.mode, split="train", metric="FID")["feats"]
-    # check shape of features
-    print(f"Extract real features {real_features.shape}")
-    print(f"Extract fake features {fake_features.shape}")
-
-    # compute precision recall
-    data_dict = knn_precision_recall_features(real_features, fake_features, num_gpus=args.num_gpus)
-
-    return data_dict
-
 
 def main(args):
     # construct image folder
@@ -58,14 +43,7 @@ def main(args):
 
     # compute fid
     fid_score = fid.compute_fid("./logs/temp/", mode=args.mode, dataset_name=args.dataset, dataset_res=args.resolution, dataset_split="train", batch_size = args.batch_size, num_workers = args.num_gpus * 4)
-    print(f"clean-fid score: {fid_score:.3f}")
-
-    # compute precision recall
-    """score_dict = compute_precision_recall(args)
-    precision_score = score_dict["precision"]
-    recall_score = score_dict["precision"]
-    print(f"precision score: {precision_score}")
-    print(f"recall score: {recall_score}")"""
+    print(f"{args.mode}-fid score: {fid_score:.3f}")
 
 
 if __name__ == '__main__':
