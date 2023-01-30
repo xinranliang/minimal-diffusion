@@ -11,11 +11,12 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 from cleanfid import fid
-from cleanfid.fid import get_folder_features
-from cleanfid.features import get_reference_statistics, build_feature_extractor
+
+from precision_recall import compute_precision_recall
+from utils import rgb_to_grayscale
 
 
-def process_real(dataset, resolution, num_channels=3):
+def process_real(dataset, resolution, num_channels=3, mode="none"):
     r"""
     Function to save real images train split into a specific folder, used for computing FID statistics
 
@@ -34,7 +35,10 @@ def process_real(dataset, resolution, num_channels=3):
         root_dir = os.path.join(root_dir, "cifar-10-batches-py")
 
         # train split
-        save_folder = os.path.join("./logs/cifar10_color")
+        if mode == "color":
+            save_folder = os.path.join("./logs/cifar10_color")
+        elif mode == "gray":
+            save_folder = os.path.join("./logs/cifar10_gray")
 
         img_idx = 0
         for num_batch in range(1, 6):
@@ -50,7 +54,11 @@ def process_real(dataset, resolution, num_channels=3):
             images = np.transpose(images, (0, 2, 3, 1))
 
             for idx in range(images.shape[0]):
-                image = Image.fromarray(images[idx], "RGB")
+                if mode == "color":
+                    image = Image.fromarray(images[idx], "RGB")
+                elif mode == "gray":
+                    image = Image.fromarray(rgb_to_grayscale(images[idx]), "RGB")
+
                 image.save(os.path.join(save_folder, "train_%05d.png" % (img_idx)))
                 img_idx += 1
         
@@ -82,23 +90,39 @@ def array_to_image(path, folder="./logs/temp"):
 def main(args):
     real_path = None
     if args.save_real:
-        real_path = process_real(args.dataset, args.resolution)
+        real_path = process_real(args.dataset, args.resolution, mode=args.real_mode)
+    else: 
+        if args.real_mode == "color":
+            real_path = "./logs/cifar10_color"
+        elif args.real_mode == "gray":
+            real_path = "./logs/cifar10_gray"
+    
     # construct image folder
     array_to_image(args.fake)
 
     # compute fid
-    fid_score = fid.compute_fid("./logs/temp/", mode=args.mode, dataset_name=args.dataset, dataset_res=args.resolution, dataset_split="train", batch_size = args.batch_size, num_workers = args.num_gpus * 4)
-    print(f"{args.mode}-fid score with pre-computed statistics: {fid_score:.3f}")
+    if args.real_mode == "color":
+        fid_score = fid.compute_fid("./logs/temp/", mode=args.mode, dataset_name=args.dataset, dataset_res=args.resolution, dataset_split="train", batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+        print(f"{args.mode}-fid score with pre-computed statistics: {fid_score:.3f}")
 
-    if real_path is not None:
-        fid_score = fid.compute_fid("./logs/temp/", real_path, mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+    if args.real_mode == "gray":
+        fid_score = fid.compute_fid(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
         print(f"{args.mode}-fid score with folder-wise statistics: {fid_score:.3f}")
+    
+    # compute precision recall
+    # check: fdir1 is real folder path and fdir2 is fake folder path
+    precision_recall = compute_precision_recall(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+    precision = precision_recall["precision"]
+    recall = precision_recall["recall"]
+    print(f"{args.mode}-precision: {precision:.3f}")
+    print(f"{args.mode}-recall: {recall:.3f}")
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', type=str, required=True, help='real dataset to evaluate')
     parser.add_argument('--save-real', action="store_true", help="whether to save real dataset into folders")
+    parser.add_argument('--real-mode', type=str, choices=["color", "gray"])
     parser.add_argument('--fake', type=str, required=True, help=('Path to the generated images'))
     parser.add_argument('--resolution', type=int, required=True, help='image resolution to compute metrics')
     parser.add_argument('--mode', type=str, default="clean", choices=["clean", "legacy_pytorch", "legacy_tensorflow"])

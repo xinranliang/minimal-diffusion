@@ -31,6 +31,15 @@ def rgb_to_grayscale(image):
     return gray_image
 
 
+def prob_mask_shapelike(shape, keep_prob, device=torch.device("cuda")):
+    if keep_prob == 1:
+        return torch.ones(shape, device = device, dtype = torch.bool)
+    elif keep_prob == 0:
+        return torch.zeros(shape, device = device, dtype = torch.bool)
+    else:
+        return torch.zeros(shape, device = device).float().uniform_(0, 1) < keep_prob
+
+
 class logger(object):
     def __init__(self, max_steps, writer_mode, log_dir, ema_w):
         self.max_steps = max_steps

@@ -7,6 +7,8 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utils import prob_mask_shapelike
+
 
 class GroupNorm32(nn.GroupNorm):
     def forward(self, x):
@@ -537,6 +539,9 @@ class UNetModel(nn.Module):
     :param dims: determines if the signal is 1D, 2D, or 3D.
     :param num_classes: if specified (as an int), then this model will be
         class-conditional with `num_classes` classes.
+    :param w: weight of classifier-free guidance, by default 0 if no guidance, 
+        must be used together with class conditional diffusion model
+    :param null_cond_prob: probability of dropping class label during training
     :param use_checkpoint: use gradient checkpointing to reduce memory usage.
     :param num_heads: the number of attention heads in each attention layer.
     :param num_heads_channels: if specified, ignore num_heads and instead use
@@ -563,6 +568,8 @@ class UNetModel(nn.Module):
         conv_resample=True,
         dims=2,
         num_classes=None,
+        w=0.0,
+        null_cond_prob=0.0,
         use_checkpoint=False,
         use_fp16=False,
         num_heads=1,
@@ -587,6 +594,8 @@ class UNetModel(nn.Module):
         self.channel_mult = channel_mult
         self.conv_resample = conv_resample
         self.num_classes = num_classes
+        self.w = w
+        self.null_cond_prob = null_cond_prob
         self.use_checkpoint = use_checkpoint
         self.dtype = th.float16 if use_fp16 else th.float32
         self.num_heads = num_heads
@@ -601,7 +610,10 @@ class UNetModel(nn.Module):
         )
 
         if self.num_classes is not None:
+            # regular class conditional diffusion process
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
+            # with classifier-free guidance
+            self.label_emb_null = nn.Parameter(th.randn(time_embed_dim))
 
         ch = input_ch = int(channel_mult[0] * model_channels)
         self.input_blocks = nn.ModuleList(
@@ -741,7 +753,7 @@ class UNetModel(nn.Module):
             zero_module(conv_nd(dims, input_ch, out_channels, 3, padding=1)),
         )
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x, timesteps, y, mode):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -750,6 +762,30 @@ class UNetModel(nn.Module):
         :return: an [N x C x ...] Tensor of outputs.
         """
 
+        # uncond train/sample
+        if self.num_classes is None:
+            return self.forward_basic(x, timesteps)
+        else:
+            # cond train
+            if mode == "train":
+                return self.forward_with_cond_dropout(x, timesteps, y)
+            # cond sample
+            elif mode == "sample":
+                return self.forward_with_guidance(x, timesteps, y)
+            else:
+                raise NotImplementedError
+
+    
+
+    def forward_basic(self, x, timesteps, y=None, y_cond=True):
+        """
+        Apply the model to an input batch.
+        :param x: an [N x C x ...] Tensor of inputs.
+        :param timesteps: a 1-D batch of timesteps.
+        :param y: an [N] Tensor of labels, if class-conditional.
+        :param y_cond: boolean variable indicating whether to use or drop class cond
+        :return: an [N x C x ...] Tensor of outputs.
+        """
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
@@ -758,7 +794,10 @@ class UNetModel(nn.Module):
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)
-            emb = emb + self.label_emb(y)
+            if y_cond:
+                emb = emb + self.label_emb(y)
+            else:
+                emb = emb + self.label_emb_null
         h = x.type(self.dtype)
         for module in self.input_blocks:
             h = module(h, emb)
@@ -769,6 +808,67 @@ class UNetModel(nn.Module):
             h = module(h, emb)
         h = h.type(x.dtype)
         return self.out(h)
+    
+
+    def forward_with_cond_dropout(self, x, timesteps, y):
+        """
+        Apply the model to an input batch. 
+        Assume training mode, with clssifier-free guidance, 
+            - with prob self.null_cond_prob deactivate class label
+            - with prob (1 - self.null_cond_prob) pass in class label
+
+        :param x: an [N x C x ...] Tensor of inputs.
+        :param timesteps: a 1-D batch of timesteps.
+        :param y: an [N] Tensor of labels, if class-conditional.
+        :return: an [N x C x ...] Tensor of outputs.
+        """
+        assert self.num_classes is not None
+
+        # normal without cond dropout
+        class_emb = self.label_emb(y)
+        # with dropout prob
+        if self.null_cond_prob > 0.0:
+            keep_mask = prob_mask_shapelike((x.shape[0], ), 1 - self.null_cond_prob)
+            null_class_emb = self.label_emb_null.repeat(y.shape[0], 1) # batch_size x emb_dim
+            class_emb = th.where(keep_mask.reshape(-1, 1), class_emb, null_class_emb)
+        
+        hs = []
+        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        assert y.shape == (x.shape[0],)
+        emb = emb + class_emb
+        h = x.type(self.dtype)
+        for module in self.input_blocks:
+            h = module(h, emb)
+            hs.append(h)
+        h = self.middle_block(h, emb)
+        for module in self.output_blocks:
+            h = th.cat([h, hs.pop()], dim=1)
+            h = module(h, emb)
+        h = h.type(x.dtype)
+        return self.out(h)
+    
+
+    def forward_with_guidance(self, x, timesteps, y):
+        """
+        Apply the model to an input batch.
+        :param x: an [N x C x ...] Tensor of inputs.
+        :param timesteps: a 1-D batch of timesteps.
+        :param y: an [N] Tensor of labels, if class-conditional.
+        :return: an [N x C x ...] Tensor of outputs.
+        """
+        # cond output
+        eps_cond = self.forward_basic(x, timesteps, y, True)
+
+        if self.w > 0.0:
+            # uncond output
+            eps_uncond = self.forward_basic(x, timesteps, y, False)
+            # classifier-free guidance
+            eps = (1 + self.w) * eps_cond - self.w * eps_uncond
+            return eps
+        else:
+            assert self.w == 0.0
+            return eps_cond
+
 
 
 def UNetBig(
@@ -777,6 +877,8 @@ def UNetBig(
     out_channels=3,
     base_width=192,
     num_classes=None,
+    guide_w=0.0,
+    prob_drop_cond=0.0
 ):
     if image_size == 128:
         channel_mult = (1, 1, 2, 3, 4)
@@ -815,6 +917,8 @@ def UNetBig(
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=True,
+        w=guide_w,
+        null_cond_prob=prob_drop_cond,
     )
 
 
@@ -824,6 +928,8 @@ def UNet(
     out_channels=3,
     base_width=64,
     num_classes=None,
+    guide_w=0.0,
+    prob_drop_cond=0.0
 ):
     if image_size == 128:
         channel_mult = (1, 1, 2, 3, 4)
@@ -862,6 +968,8 @@ def UNet(
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=True,
+        w=guide_w,
+        null_cond_prob=prob_drop_cond,
     )
 
 
@@ -871,6 +979,8 @@ def UNetSmall(
     out_channels=3,
     base_width=32,
     num_classes=None,
+    guide_w=0.0,
+    prob_drop_cond=0.0
 ):
     if image_size == 128:
         channel_mult = (1, 1, 2, 3, 4)
@@ -910,4 +1020,6 @@ def UNetSmall(
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=True,
+        w=guide_w,
+        null_cond_prob=prob_drop_cond,
     )

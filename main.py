@@ -47,6 +47,18 @@ def get_args():
         default=False,
         help="Sampling using DDIM update step",
     )
+    parser.add_argument(
+        "--classifier-free-w",
+        type=float,
+        default=0.0,
+        help="Weight of classfiier-free guidance in sampling process",
+    )
+    parser.add_argument(
+        "--class-cond-dropout",
+        type=float,
+        default=0.0,
+        help="Probability of droping class labels in training"
+    )
 
     # dataset
     parser.add_argument("--dataset", type=str)
@@ -126,6 +138,8 @@ def main(args):
         in_channels=metadata.num_channels,
         out_channels=metadata.num_channels,
         num_classes=metadata.num_classes if args.class_cond else None,
+        guide_w=args.classifier_free_w,
+        prob_drop_cond=args.class_cond_dropout
     ).to(args.device)
     if args.local_rank == 0:
         print(
@@ -166,7 +180,9 @@ def main(args):
     log_dir = os.path.join(
             args.save_dir, 
             "color{}_gray{}".format(args.color, args.grayscale),
-            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus)
+            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_guidance{}_drop{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.classifier_free_w, args.class_cond_dropout
+            )
             )
     os.makedirs(log_dir, exist_ok=True)
 
@@ -221,16 +237,28 @@ def main(args):
             metadata.num_classes,
             args,
         )
-        os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-        np.savez(
-            os.path.join(
-                log_dir,
-                "samples",
-                f"{args.ckpt_name}_num{args.num_sampled_images}_color.npz",
-            ),
-            sampled_images,
-            labels,
-        )
+        if "ema" in args.ckpt_name:
+            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples_ema",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_color.npz",
+                ),
+                sampled_images,
+                labels,
+            )
+        else:
+            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_color.npz",
+                ),
+                sampled_images,
+                labels,
+            )
         print("Finish sampling color images from pretrained checkpoint! Return")
         return
     if args.sampling_gray_only:
@@ -246,16 +274,28 @@ def main(args):
             metadata.num_classes,
             args,
         )
-        os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-        np.savez(
-            os.path.join(
-                log_dir,
-                "samples",
-                f"{args.ckpt_name}_num{args.num_sampled_images}_gray.npz",
-            ),
-            sampled_images,
-            labels,
-        )
+        if "ema" in args.ckpt_name:
+            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples_ema",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_gray.npz",
+                ),
+                sampled_images,
+                labels,
+            )
+        else:
+            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_gray.npz",
+                ),
+                sampled_images,
+                labels,
+            )
         print("Finish sampling gray images from pretrained checkpoint! Return")
         return
 

@@ -16,6 +16,11 @@ source ~/.bashrc
 conda activate diffusion-bias
 cd /n/fs/xl-diffbia/projects/minimal-diffusion
 
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
+    --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-color-only --sampling-steps 250 \
+    --data-dir ./datasets --save-dir ./logs/ --date 2023-01-22 --color 0.01 --grayscale 0.99 \
+    --ckpt-name cifar10_uncond_color0.01_gray0.99_epoch1000_ema \
+    --pretrained-ckpt ./logs/2023-01-22/cifar10/color0.01_gray0.99/UNet_diffusionstep_1000_samplestep_1000_condition_False_lr_0.0001_bs_256/ckpt/epoch_1000_ema_0.9995.pth
 
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
     --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-color-only --sampling-steps 250 \
@@ -40,3 +45,9 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_
     --data-dir ./datasets --save-dir ./logs/ --date 2023-01-22 --color 0.95 --grayscale 0.05 \
     --ckpt-name cifar10_uncond_color0.95_gray0.05_epoch1000_ema \
     --pretrained-ckpt ./logs/2023-01-22/cifar10/color0.95_gray0.05/UNet_diffusionstep_1000_samplestep_1000_condition_False_lr_0.0001_bs_256/ckpt/epoch_1000_ema_0.9995.pth
+
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
+    --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-color-only --sampling-steps 250 \
+    --data-dir ./datasets --save-dir ./logs/ --date 2023-01-22 --color 0.99 --grayscale 0.01 \
+    --ckpt-name cifar10_uncond_color0.99_gray0.01_epoch1000_ema \
+    --pretrained-ckpt ./logs/2023-01-22/cifar10/color0.01_gray0.99/UNet_diffusionstep_1000_samplestep_1000_condition_False_lr_0.0001_bs_256/ckpt/epoch_1000_ema_0.9995.pth

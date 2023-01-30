@@ -136,7 +136,7 @@ class GuassianDiffusion:
             with torch.no_grad():
                 current_t = torch.tensor([t] * len(final), device=final.device)
                 current_sub_t = torch.tensor([i] * len(final), device=final.device)
-                pred_epsilon = model(final, current_t, **model_kwargs)
+                pred_epsilon = model(final, current_t, **model_kwargs, mode="sample")
                 # using xt+x0 to derive mu_t, instead of using xt+eps (former is more stable)
                 pred_x0 = self.get_x0_from_xt_eps(
                     final, pred_epsilon, current_sub_t, scalars
@@ -189,7 +189,7 @@ def train_one_epoch(
             args.device
         )
         xt, eps = diffusion.sample_from_forward_process(images, t)
-        pred_eps = model(xt, t, y=labels)
+        pred_eps = model(xt, t, y=labels, mode="train")
 
         loss = ((pred_eps - eps) ** 2).mean()
         optimizer.zero_grad()
