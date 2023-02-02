@@ -1,5 +1,6 @@
 import os
 import cv2
+from PIL import Image
 import copy
 import math
 import argparse
@@ -14,34 +15,21 @@ def get_args():
     parser.add_argument('--train-color', type=float, help="manually set portion of color images in training distribution")
     parser.add_argument('--train-gray', type=float, help="manually set portion of gray images in training distribution")
 
-    parser.add_argument('--sample-color', action="store_true", help="only inspect color samples")
-    parser.add_argument('--sample-gray', action="store_true", help="only inspect gray samples")
-    parser.add_argument('--num-samples', type=int, help="number of samples in total")
-
-    parser.add_argument('--num-visualize', type=int, default=100, help="number of images to visualize, should be square number n^2")
+    parser.add_argument('--num-samples', type=int, default=50000, help="number of samples available in total")
+    parser.add_argument('--num-visualize', type=int, default=200, help="number of images to visualize, should be square number n^2")
 
     parser.add_argument('--date', type=str, help="experiment date for logging purpose")
-    parser.add_argument('--diffusion-config', type=str, default="UNet_diffusionstep_1000_samplestep_250_condition_False_lr_0.0001_bs_512", help="diffusion model configuration, currently set to be default parameters")
+    parser.add_argument('--diffusion-config', type=str, help="diffusion model training configuration")
+    parser.add_argument('--sample-config', type=str, help="diffusion model sampling configuration, without .npz ending")
+    parser.add_argument('--class-cond', action="store_true", help="whether diffusion model is trained to be class conditional")
+    parser.add_argument('--num-classes', type=int, help="number of classes in dataset")
 
     args = parser.parse_args()
-
-    if args.sample_color:
-        args.sample_str = "color"
-    elif args.sample_gray:
-        args.sample_str = "gray"
-    else:
-        args.sample_str = "none"
     
-    if args.sample_str == "none":
-        args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
-                        args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
-                        args.diffusion_config, "samples", 
-                        "{}_color{}_gray{}_epoch_{}_num{}.npz".format(args.dataset, args.train_color, args.train_gray, 950, args.num_samples))
-    else:
-        args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+    args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
                             args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
-                            args.diffusion_config, "samples", 
-                            "{}_color{}_gray{}_epoch_{}_num{}_{}.npz".format(args.dataset, args.train_color, args.train_gray, 950, args.num_samples, args.sample_str))
+                            args.diffusion_config, "samples_ema", 
+                            "{}.npz".format(args.sample_config))
 
     return args 
 
@@ -50,24 +38,44 @@ def main():
     args = get_args()
 
     save_file = np.load(args.sample_file, allow_pickle=True)
-    index = np.random.choice(args.num_samples, args.num_visualize, replace=False)
-    samples = save_file['arr_0'][index] # shape = num_samples x height x width x n_channel
-    samples = np.split(samples, np.sqrt(args.num_visualize).astype(int), axis=0)
 
-    if args.sample_str == "none":
-        file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
-                            args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
-                            args.diffusion_config, "figures",
-                            "{}_color{}_gray{}_epoch_{}.png".format(args.dataset, args.train_color, args.train_gray, 950))
+    # cond, need to get (num_visualize // num_classes) samples per class
+    if args.class_cond:
+        assert args.num_classes > 0
+
+        # samples shape: num_samples x height x width x n_channels
+        samples, labels = save_file['arr_0'], save_file['arr_1'][:args.num_samples]
+        # visualize shape: num_classes x num_samples x height x width x n_channels
+        num_viz_per_cls = int(args.num_visualize / args.num_classes)
+        viz_arr = np.zeros((args.num_classes, num_viz_per_cls, samples.shape[1], samples.shape[2], samples.shape[3]), dtype=np.uint8)
+        for cls_idx in range(args.num_classes):
+            sample_index = np.argwhere(labels == cls_idx).reshape(-1)
+            sample_index = np.random.choice(sample_index, size=num_viz_per_cls, replace=False)
+            for viz_idx in range(num_viz_per_cls):
+                new_image, new_label = samples[sample_index[viz_idx]], labels[sample_index[viz_idx]]
+                np.copyto(dst=viz_arr[cls_idx, viz_idx], src=new_image)
+        
+        viz_arr = np.concatenate(np.concatenate(viz_arr, axis=1), axis=1)
+
+    # uncond, random sample
     else:
-        file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
-                                args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
-                                args.diffusion_config, "figures",
-                                "{}_color{}_gray{}_epoch_{}_{}.png".format(args.dataset, args.train_color, args.train_gray, 950, args.sample_str))
+        index = np.random.choice(args.num_samples, args.num_visualize, replace=False)
+        # get all samples and select subset index for visualization
+        samples = save_file['arr_0'][index] # shape = num_samples x height x width x n_channel
+        samples = np.split(samples, np.sqrt(args.num_visualize).astype(int), axis=0)
+        viz_arr = np.concatenate(np.concatenate(samples, axis=1), axis=1)
+
+    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+                            args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
+                            args.diffusion_config, "samples_ema", "figures",
+                            "{}_viz{}.png".format(args.sample_config, args.num_visualize))
+    os.makedirs(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
+                            args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
+                            args.diffusion_config, "samples_ema", "figures"), exist_ok=True)
 
     cv2.imwrite(
         file_path,
-        np.concatenate(np.concatenate(samples, axis=1), axis=1)[:, :, ::-1]
+        viz_arr[:, :, ::-1]
     )
 
 

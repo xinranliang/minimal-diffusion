@@ -612,8 +612,9 @@ class UNetModel(nn.Module):
         if self.num_classes is not None:
             # regular class conditional diffusion process
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
-            # with classifier-free guidance
-            self.label_emb_null = nn.Parameter(th.randn(time_embed_dim))
+            # with classifier-free guidance, always forward call with 0
+            # self.label_emb_null = nn.Parameter(th.randn(time_embed_dim))
+            self.label_emb_null = nn.Embedding(1, time_embed_dim)
 
         ch = input_ch = int(channel_mult[0] * model_channels)
         self.input_blocks = nn.ModuleList(
@@ -797,7 +798,8 @@ class UNetModel(nn.Module):
             if y_cond:
                 emb = emb + self.label_emb(y)
             else:
-                emb = emb + self.label_emb_null
+                null_input = th.zeros([y.shape[0], ], dtype=th.long).cuda()
+                emb = emb + self.label_emb_null(null_input)
         h = x.type(self.dtype)
         for module in self.input_blocks:
             h = module(h, emb)
@@ -829,7 +831,8 @@ class UNetModel(nn.Module):
         # with dropout prob
         if self.null_cond_prob > 0.0:
             keep_mask = prob_mask_shapelike((x.shape[0], ), 1 - self.null_cond_prob)
-            null_class_emb = self.label_emb_null.repeat(y.shape[0], 1) # batch_size x emb_dim
+            null_input = th.zeros([y.shape[0], ], dtype=th.long).cuda()
+            null_class_emb = self.label_emb_null(null_input) # batch_size x emb_dim
             class_emb = th.where(keep_mask.reshape(-1, 1), class_emb, null_class_emb)
         
         hs = []

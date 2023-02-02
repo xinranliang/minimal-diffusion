@@ -180,8 +180,8 @@ def main(args):
     log_dir = os.path.join(
             args.save_dir, 
             "color{}_gray{}".format(args.color, args.grayscale),
-            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_guidance{}_drop{}".format(
-                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.classifier_free_w, args.class_cond_dropout
+            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
             )
             )
     os.makedirs(log_dir, exist_ok=True)
@@ -322,14 +322,18 @@ def main(args):
     model_dir = os.path.join(
         args.save_dir, 
         "color{}_gray{}".format(args.color, args.grayscale),
-        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
+        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+        ),
         "ckpt"
         )
     os.makedirs(model_dir, exist_ok=True)
     sample_dir = os.path.join(
         args.save_dir, 
         "color{}_gray{}".format(args.color, args.grayscale),
-        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus), 
+        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+        ),
         "samples"
         )
     os.makedirs(sample_dir, exist_ok=True)
@@ -342,27 +346,61 @@ def main(args):
         if sampler is not None:
             sampler.set_epoch(epoch)
         train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
+
+        # sample during training
         if epoch > 0 and epoch % args.ckpt_sample_freq == 0:
-            sampled_images, _ = sample_N_images(
-                64,
-                model,
-                diffusion,
-                None,
-                args.sampling_steps,
-                args.batch_size,
-                metadata.num_channels,
-                metadata.image_size,
-                metadata.num_classes if args.class_cond else None,
-                args,
-            )
-            if args.local_rank == 0:
-                cv2.imwrite(
-                    os.path.join(
-                        sample_dir,
-                        f"epoch_{epoch}.png",
-                    ),
-                    np.concatenate(sampled_images, axis=1)[:, :, ::-1],
+
+            if args.class_cond and args.class_cond_dropout > 0.0:
+                # able to add guidance in sampling
+                guidance_w = [0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 2.0, 4.0]
+
+                for w in guidance_w:
+                    args.classifier_free_w = w
+
+                    sampled_images, _ = sample_N_images(
+                        64,
+                        model,
+                        diffusion,
+                        None,
+                        args.sampling_steps,
+                        args.batch_size,
+                        metadata.num_channels,
+                        metadata.image_size,
+                        metadata.num_classes if args.class_cond else None,
+                        args,
+                    )
+                    if args.local_rank == 0:
+                        cv2.imwrite(
+                            os.path.join(
+                                sample_dir,
+                                f"epoch_{epoch}_w_{args.classifier_free_w}.png",
+                            ),
+                            np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
+                        )
+            
+            else:
+                # either uncond or no p_uncond during training
+                sampled_images, _ = sample_N_images(
+                    64,
+                    model,
+                    diffusion,
+                    None,
+                    args.sampling_steps,
+                    args.batch_size,
+                    metadata.num_channels,
+                    metadata.image_size,
+                    metadata.num_classes if args.class_cond else None,
+                    args,
                 )
+                if args.local_rank == 0:
+                    cv2.imwrite(
+                        os.path.join(
+                            sample_dir,
+                            f"epoch_{epoch}.png",
+                        ),
+                        np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
+                    )
+
         if args.local_rank == 0 and epoch > 0 and epoch % args.ckpt_sample_freq == 0:
             torch.save(
                 model.state_dict(),
@@ -379,26 +417,54 @@ def main(args):
                 ),
             )
     
-    sampled_images, _ = sample_N_images(
-        64,
-        model,
-        diffusion,
-        None,
-        args.sampling_steps,
-        args.batch_size,
-        metadata.num_channels,
-        metadata.image_size,
-        metadata.num_classes if args.class_cond else None,
-        args,
-    )
-    if args.local_rank == 0:
-        cv2.imwrite(
-            os.path.join(
-                sample_dir,
-                "epoch_final.png",
-            ),
-            np.concatenate(sampled_images, axis=1)[:, :, ::-1],
+    if args.class_cond and args.class_cond_dropout > 0.0:
+        # able to add guidance in sampling
+        guidance_w = [0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 2.0, 4.0]
+
+        for w in guidance_w:
+            args.classifier_free_w = w
+
+            sampled_images, _ = sample_N_images(
+                64,
+                model,
+                diffusion,
+                None,
+                args.sampling_steps,
+                args.batch_size,
+                metadata.num_channels,
+                metadata.image_size,
+                metadata.num_classes if args.class_cond else None,
+                args,
+            )
+            if args.local_rank == 0:
+                cv2.imwrite(
+                    os.path.join(
+                        sample_dir,
+                        f"epoch_final_w_{args.classifier_free_w}.png",
+                    ),
+                    np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
+                )
+    else:
+        sampled_images, _ = sample_N_images(
+            64,
+            model,
+            diffusion,
+            None,
+            args.sampling_steps,
+            args.batch_size,
+            metadata.num_channels,
+            metadata.image_size,
+            metadata.num_classes if args.class_cond else None,
+            args,
         )
+        if args.local_rank == 0:
+            cv2.imwrite(
+                os.path.join(
+                    sample_dir,
+                    "epoch_final.png",
+                ),
+                np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
+            )
 
     torch.save(
         model.state_dict(),

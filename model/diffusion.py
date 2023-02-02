@@ -269,7 +269,7 @@ def sample_N_images(
             pbar.update(1)
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
     samples = (127.5 * (samples + 1)).astype(np.uint8)
-    return (samples, np.concatenate(labels) if args.class_cond else None)
+    return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
 def sample_color_images(
@@ -323,7 +323,7 @@ def sample_color_images(
             pbar.update(index_select.shape[0])
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
     samples = (127.5 * (samples + 1)).astype(np.uint8)
-    return (samples, np.concatenate(labels) if args.class_cond else None)
+    return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
 def sample_gray_images(
@@ -377,4 +377,4 @@ def sample_gray_images(
             pbar.update(index_select.shape[0])
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
     samples = (127.5 * (samples + 1)).astype(np.uint8)
-    return (samples, np.concatenate(labels) if args.class_cond else None)
+    return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
