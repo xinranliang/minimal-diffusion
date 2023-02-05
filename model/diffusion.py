@@ -102,7 +102,7 @@ class GuassianDiffusion:
         return xt.float(), eps
 
     def sample_from_reverse_process(
-        self, model, xT, timesteps=None, model_kwargs={}, ddim=False
+        self, model, xT, timesteps=None, model_kwargs={}, ddim=False, w=0.0
     ):
         """Sampling images by iterating over all timesteps.
 
@@ -113,6 +113,7 @@ class GuassianDiffusion:
         model_kwargs: Additional kwargs for model (using it to feed class label for conditioning)
         ddim: Use ddim sampling (https://arxiv.org/abs/2010.02502). With very small number of
             sampling steps, use ddim sampling for better image quality.
+        w: scale of classifier-free guidance, by default 0.0 is no guidance
 
         Return: An image tensor with identical shape as XT.
         """
@@ -136,7 +137,7 @@ class GuassianDiffusion:
             with torch.no_grad():
                 current_t = torch.tensor([t] * len(final), device=final.device)
                 current_sub_t = torch.tensor([i] * len(final), device=final.device)
-                pred_epsilon = model(final, current_t, **model_kwargs, mode="sample")
+                pred_epsilon = model(final, current_t, **model_kwargs, mode="sample", w=w)
                 # using xt+x0 to derive mu_t, instead of using xt+eps (former is more stable)
                 pred_x0 = self.get_x0_from_xt_eps(
                     final, pred_epsilon, current_sub_t, scalars
@@ -255,7 +256,7 @@ def sample_N_images(
             else:
                 y = None
             gen_images = diffusion.sample_from_reverse_process(
-                model, xT, sampling_steps, {"y": y}, args.ddim
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
             )
             samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
             if args.class_cond:
@@ -302,7 +303,7 @@ def sample_color_images(
             else:
                 y = None
             gen_images = diffusion.sample_from_reverse_process(
-                model, xT, sampling_steps, {"y": y}, args.ddim
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
             )
             samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
             dist.all_gather(samples_list, gen_images, group)
@@ -356,7 +357,7 @@ def sample_gray_images(
             else:
                 y = None
             gen_images = diffusion.sample_from_reverse_process(
-                model, xT, sampling_steps, {"y": y}, args.ddim
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
             )
             samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
             dist.all_gather(samples_list, gen_images, group)
@@ -378,3 +379,71 @@ def sample_gray_images(
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N]
     samples = (127.5 * (samples + 1)).astype(np.uint8)
     return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
+
+
+def sample_N_images_cond(
+    N,
+    model,
+    diffusion,
+    class_label,
+    xT=None,
+    sampling_steps=250,
+    batch_size=64,
+    num_channels=3,
+    image_size=32,
+    args=None,
+):
+    # sample n images from each class for total k classes
+    """use this function to sample any number of images from a given
+        diffusion model and diffusion process.
+
+    Args:
+        N : Number of images for one class
+        model : Diffusion model
+        diffusion : Diffusion process
+        xT : Starting instantiation of noise vector.
+        sampling_steps : Number of sampling steps.
+        batch_size : Batch-size for sampling.
+        num_channels : Number of channels in the image.
+        image_size : Image size (assuming square images).
+        num_classes : Number of classes in the dataset, assume class-conditional model
+        args : All args from the argparser.
+
+    Returns: Numpy array (num_classes x n x image_size) with images and corresponding labels.
+    """
+    # assert class-conditional
+    assert args.class_cond 
+
+    samples, labels, num_samples = [], [], 0
+    num_processes, group = dist.get_world_size(), dist.group.WORLD
+
+    with tqdm(total=math.ceil(N / (args.batch_size * num_processes))) as pbar:
+        while num_samples < N:
+            # initialize noise
+            if xT is None:
+                xT = (
+                        torch.randn(batch_size, num_channels, image_size, image_size)
+                        .float()
+                        .to(args.device)
+                    )
+                # specify class label
+            y = torch.zeros(size=(len(xT),), dtype=torch.int64).to(args.device)
+            y.fill_(class_label)
+
+            gen_images = diffusion.sample_from_reverse_process(
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
+            )
+            samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
+
+            labels_list = [torch.zeros_like(y) for _ in range(num_processes)]
+            dist.all_gather(labels_list, y, group)
+            labels.append(torch.cat(labels_list).detach().cpu().numpy())
+
+            dist.all_gather(samples_list, gen_images, group)
+            samples.append(torch.cat(samples_list).detach().cpu().numpy())
+            num_samples += len(xT) * num_processes
+            pbar.update(1)
+            
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
+    samples = (127.5 * (samples + 1)).astype(np.uint8)
+    return (samples, np.concatenate(labels)[:N])

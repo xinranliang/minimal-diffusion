@@ -13,7 +13,7 @@ import scipy, scipy.io
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset
 
-from utils import rgb_to_grayscale
+from utils import rgb_to_gray
 
 CLASSES = (
     "plane",
@@ -37,7 +37,7 @@ def generate_index_cifar10():
             ]
         )
     for color, gray in zip([0.99, 0.95, 0.9, 0.1, 0.05, 0.01], [0.01, 0.05, 0.1, 0.9, 0.95, 0.99]):
-        cifar10 = CIFAR10_Custom(
+        cifar10 = CIFAR10_ColorGray(
             root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
             train=True,
             transform=transform_train,
@@ -56,7 +56,7 @@ def check_cifar10_index():
             ]
         )
     for color, gray in zip([1.0, 0.99, 0.95, 0.9, 0.1, 0.05, 0.01, 0.0], [0.0, 0.01, 0.05, 0.1, 0.9, 0.95, 0.99, 1.0]):
-        cifar10 = CIFAR10_Custom(
+        cifar10 = CIFAR10_ColorGray(
             root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
             train=True,
             transform=transform_train,
@@ -68,7 +68,59 @@ def check_cifar10_index():
         )
 
 
-class CIFAR10_Custom(datasets.CIFAR10):
+def generate_fixgroup_cifar10():
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    
+    fix_num = 2500
+    options = [0, 250, 500, 1000, 2500, 5000, 10000, 20000, 40000]
+
+    for number in options:
+        cifar10 = CIFAR10_FixGroup(
+                root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+                train=True,
+                transform=transform_train,
+                target_transform=None,
+                download=False,
+                color_number=fix_num,
+                gray_number=number,
+                split=True # whether we're performing one-off splitting
+        )
+
+def check_fixgroup_cifar10():
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    
+    fix_num = 2500
+    options = [0, 250, 500, 1000, 2500, 5000, 10000, 20000, 40000]
+
+    for number in options:
+        cifar10 = CIFAR10_FixGroup(
+                root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+                train=True,
+                transform=transform_train,
+                target_transform=None,
+                download=False,
+                color_number=fix_num,
+                gray_number=number,
+                split=False # whether we're performing one-off splitting
+        )
+
+        print("Construct dataset with {} color and {} gray images".format(fix_num, number))
+        print("Color index has length {}".format(len(cifar10.color_index)))
+        print("Gray index has length {}".format(len(cifar10.gray_index)))
+        image, label = cifar10.__getitem__(200)
+
+
+class CIFAR10_ColorGray(datasets.CIFAR10):
     def __init__(
         self,
         root,
@@ -156,9 +208,106 @@ class CIFAR10_Custom(datasets.CIFAR10):
             target = self.target_transform(target)
 
         return img, target
+
+
+class CIFAR10_FixGroup(datasets.CIFAR10):
+    def __init__(
+        self,
+        root,
+        train,
+        transform,
+        target_transform,
+        download,
+        color_number = None, 
+        gray_number = None,
+        split = False
+    ):
+        super().__init__(root, train, transform, target_transform, download=download)
+
+        self.num_classes = 10 # default 10 classes
+        self.color_number = color_number
+        self.gray_number = gray_number
+
+        # get color index and gray index
+        if split == True and self.color_number != 0 and self.gray_number != 0:
+            split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+            with open(split_file_path, "rb") as f:
+                file_load = pickle.load(f)
+            self.color_index = file_load["color_index"]
+            self.gray_index = file_load["gray_index"]
+            assert self.gray_number <= len(self.gray_index)
+            self.gray_index = np.random.choice(self.gray_index, size=self.gray_number, replace=False)
+
+            idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
+
+            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
+            with open(file_path, "wb") as f:
+                pickle.dump(idx_dict, f)
+        
+        elif split == True and (self.color_number == 0 or self.gray_number == 0):
+            # one of subgroup has no instance
+            split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+            with open(split_file_path, "rb") as f:
+                file_load = pickle.load(f)
+            self.color_index = file_load["color_index"]
+            self.gray_index = []
+
+            idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
+
+            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
+            with open(file_path, "wb") as f:
+                pickle.dump(idx_dict, f)
+
+        elif split == False:
+            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
+            with open(file_path, "rb") as f:
+                file_load = pickle.load(f)
+            print("Loading color/gray index from file path {}".format(file_path))
+            self.color_index = file_load["color_index"]
+            self.gray_index = file_load["gray_index"]
+        
+        else:
+            raise NotImplementedError
+        
+        # random shuffle all color and gray index
+        # both are numpy array (color_number, ) (gray_number, )
+        self.image_index = np.concatenate((self.color_index, self.gray_index), axis=0).astype(int)
+        random.shuffle(self.image_index)
+    
+
+    def __len__(self):
+        return self.color_number + self.gray_number
+    
+    def __getitem__(self, index):
+        img_idx = self.image_index[index]
+        print(img_idx)
+        img, target = self.data[img_idx], self.targets[img_idx]
+
+        # decide color or grayscale
+        if img_idx in self.gray_index:
+            assert img_idx not in self.color_index
+            img = rgb_to_gray(img)
+            img = img.astype(np.uint8)
+        else:
+            assert img_idx in self.color_index
+        
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        img = Image.fromarray(img)
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target
+        
     
 
 if __name__ == "__main__":
-    generate_index_cifar10()
-    check_cifar10_index()
+    # generate_index_cifar10()
+    # check_cifar10_index()
+    # generate_fixgroup_cifar10()
+    check_fixgroup_cifar10()
     

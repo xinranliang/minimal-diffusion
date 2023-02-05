@@ -14,7 +14,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_color_images, sample_gray_images
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_color_images, sample_gray_images, sample_N_images_cond
 import model.unets as unets
 import utils
 
@@ -59,12 +59,13 @@ def get_args():
         default=0.0,
         help="Probability of droping class labels in training"
     )
+    parser.add_argument("--guidance", action="store_true", help="whether to check effect of guidance by trying out different w values")
 
     # dataset
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--data-dir", type=str, default="./dataset/")
-    parser.add_argument("--color", type=float, default=1.0, help="ratio of training distribution to be turned into colored images")
-    parser.add_argument("--grayscale", type=float, default=0.0, help="ratio of training distribution to be turned into grayscale images")
+    parser.add_argument("--color", help="ratio or number of training distribution to be turned into colored images")
+    parser.add_argument("--grayscale", help="ratio or number of training distribution to be turned into grayscale images")
 
     # optimizer
     parser.add_argument(
@@ -138,7 +139,6 @@ def main(args):
         in_channels=metadata.num_channels,
         out_channels=metadata.num_channels,
         num_classes=metadata.num_classes if args.class_cond else None,
-        guide_w=args.classifier_free_w,
         prob_drop_cond=args.class_cond_dropout
     ).to(args.device)
     if args.local_rank == 0:
@@ -185,6 +185,56 @@ def main(args):
             )
             )
     os.makedirs(log_dir, exist_ok=True)
+
+    if args.guidance:
+        guidance_w = [0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 2.0, 4.0, 8.0]
+
+        for w in guidance_w:
+            args.classifier_free_w = w 
+
+            for class_label in range(metadata.num_classes):
+                if "ema" in args.ckpt_name:
+                    os.makedirs(os.path.join(log_dir, "samples_ema", "guidance", "class_{}".format(class_label)), exist_ok=True)
+                else:
+                    os.makedirs(os.path.join(log_dir, "samples", "guidance", "class_{}".format(class_label)), exist_ok=True)
+
+                sampled_images, labels = sample_N_images_cond(
+                    args.num_sampled_images,
+                    model,
+                    diffusion,
+                    class_label,
+                    None,
+                    args.sampling_steps,
+                    args.batch_size,
+                    metadata.num_channels,
+                    metadata.image_size,
+                    args,
+                )
+
+                if "ema" in args.ckpt_name:
+                    np.savez(
+                        os.path.join(
+                            log_dir,
+                            "samples_ema",
+                            "guidance",
+                            "class_{}".format(class_label),
+                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                        ),
+                        sampled_images,
+                        labels,
+                    )
+                else:
+                    np.savez(
+                        os.path.join(
+                            log_dir,
+                            "samples",
+                            "guidance",
+                            "class_{}".format(class_label),
+                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                        ),
+                        sampled_images,
+                        labels,
+                    )
 
     # sampling
     if args.sampling_only:
@@ -349,38 +399,7 @@ def main(args):
 
         # sample during training
         if epoch > 0 and epoch % args.ckpt_sample_freq == 0:
-
-            if args.class_cond and args.class_cond_dropout > 0.0:
-                # able to add guidance in sampling
-                guidance_w = [0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 2.0, 4.0]
-
-                for w in guidance_w:
-                    args.classifier_free_w = w
-
-                    sampled_images, _ = sample_N_images(
-                        64,
-                        model,
-                        diffusion,
-                        None,
-                        args.sampling_steps,
-                        args.batch_size,
-                        metadata.num_channels,
-                        metadata.image_size,
-                        metadata.num_classes if args.class_cond else None,
-                        args,
-                    )
-                    if args.local_rank == 0:
-                        cv2.imwrite(
-                            os.path.join(
-                                sample_dir,
-                                f"epoch_{epoch}_w_{args.classifier_free_w}.png",
-                            ),
-                            np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
-                        )
-            
-            else:
-                # either uncond or no p_uncond during training
-                sampled_images, _ = sample_N_images(
+            sampled_images, _ = sample_N_images(
                     64,
                     model,
                     diffusion,
@@ -392,14 +411,14 @@ def main(args):
                     metadata.num_classes if args.class_cond else None,
                     args,
                 )
-                if args.local_rank == 0:
-                    cv2.imwrite(
-                        os.path.join(
-                            sample_dir,
-                            f"epoch_{epoch}.png",
-                        ),
-                        np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
-                    )
+            if args.local_rank == 0:
+                cv2.imwrite(
+                    os.path.join(
+                        sample_dir,
+                        f"epoch_{epoch}.png",
+                    ),
+                    np.concatenate(sampled_images, axis=1)[:, :, ::-1],
+                )
 
         if args.local_rank == 0 and epoch > 0 and epoch % args.ckpt_sample_freq == 0:
             torch.save(
@@ -417,54 +436,26 @@ def main(args):
                 ),
             )
     
-    if args.class_cond and args.class_cond_dropout > 0.0:
-        # able to add guidance in sampling
-        guidance_w = [0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 2.0, 4.0]
-
-        for w in guidance_w:
-            args.classifier_free_w = w
-
-            sampled_images, _ = sample_N_images(
-                64,
-                model,
-                diffusion,
-                None,
-                args.sampling_steps,
-                args.batch_size,
-                metadata.num_channels,
-                metadata.image_size,
-                metadata.num_classes if args.class_cond else None,
-                args,
-            )
-            if args.local_rank == 0:
-                cv2.imwrite(
-                    os.path.join(
-                        sample_dir,
-                        f"epoch_final_w_{args.classifier_free_w}.png",
-                    ),
-                    np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
-                )
-    else:
-        sampled_images, _ = sample_N_images(
-            64,
-            model,
-            diffusion,
-            None,
-            args.sampling_steps,
-            args.batch_size,
-            metadata.num_channels,
-            metadata.image_size,
-            metadata.num_classes if args.class_cond else None,
-            args,
+    sampled_images, _ = sample_N_images(
+        64,
+        model,
+        diffusion,
+        None,
+        args.sampling_steps,
+        args.batch_size,
+        metadata.num_channels,
+        metadata.image_size,
+        metadata.num_classes if args.class_cond else None,
+        args,
+    )
+    if args.local_rank == 0:
+        cv2.imwrite(
+            os.path.join(
+                sample_dir,
+                "epoch_final.png",
+            ),
+            np.concatenate(sampled_images, axis=1)[:, :, ::-1],
         )
-        if args.local_rank == 0:
-            cv2.imwrite(
-                os.path.join(
-                    sample_dir,
-                    "epoch_final.png",
-                ),
-                np.concatenate(np.concatenate(sampled_images, axis=1), axis=1)[:, :, ::-1],
-            )
 
     torch.save(
         model.state_dict(),

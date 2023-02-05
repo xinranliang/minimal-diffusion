@@ -9,7 +9,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 
-def rgb_to_grayscale(image):
+def rgb_to_gray(image):
     """
     Function to convert RGB channel images to grayscale images, still preserve shape/dimension
 

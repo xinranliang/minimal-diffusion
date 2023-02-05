@@ -568,7 +568,6 @@ class UNetModel(nn.Module):
         conv_resample=True,
         dims=2,
         num_classes=None,
-        w=0.0,
         null_cond_prob=0.0,
         use_checkpoint=False,
         use_fp16=False,
@@ -594,7 +593,6 @@ class UNetModel(nn.Module):
         self.channel_mult = channel_mult
         self.conv_resample = conv_resample
         self.num_classes = num_classes
-        self.w = w
         self.null_cond_prob = null_cond_prob
         self.use_checkpoint = use_checkpoint
         self.dtype = th.float16 if use_fp16 else th.float32
@@ -754,7 +752,7 @@ class UNetModel(nn.Module):
             zero_module(conv_nd(dims, input_ch, out_channels, 3, padding=1)),
         )
 
-    def forward(self, x, timesteps, y, mode):
+    def forward(self, x, timesteps, y, mode, w=0.0):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -772,7 +770,7 @@ class UNetModel(nn.Module):
                 return self.forward_with_cond_dropout(x, timesteps, y)
             # cond sample
             elif mode == "sample":
-                return self.forward_with_guidance(x, timesteps, y)
+                return self.forward_with_guidance(x, timesteps, y, w)
             else:
                 raise NotImplementedError
 
@@ -851,7 +849,7 @@ class UNetModel(nn.Module):
         return self.out(h)
     
 
-    def forward_with_guidance(self, x, timesteps, y):
+    def forward_with_guidance(self, x, timesteps, y, w):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -862,14 +860,14 @@ class UNetModel(nn.Module):
         # cond output
         eps_cond = self.forward_basic(x, timesteps, y, True)
 
-        if self.w > 0.0:
+        if w > 0.0:
             # uncond output
             eps_uncond = self.forward_basic(x, timesteps, y, False)
             # classifier-free guidance
-            eps = (1 + self.w) * eps_cond - self.w * eps_uncond
+            eps = (1 + w) * eps_cond - w * eps_uncond
             return eps
         else:
-            assert self.w == 0.0
+            assert w == 0.0
             return eps_cond
 
 
@@ -880,7 +878,6 @@ def UNetBig(
     out_channels=3,
     base_width=192,
     num_classes=None,
-    guide_w=0.0,
     prob_drop_cond=0.0
 ):
     if image_size == 128:
@@ -920,7 +917,6 @@ def UNetBig(
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=True,
-        w=guide_w,
         null_cond_prob=prob_drop_cond,
     )
 
@@ -931,7 +927,6 @@ def UNet(
     out_channels=3,
     base_width=64,
     num_classes=None,
-    guide_w=0.0,
     prob_drop_cond=0.0
 ):
     if image_size == 128:
@@ -971,7 +966,6 @@ def UNet(
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=True,
-        w=guide_w,
         null_cond_prob=prob_drop_cond,
     )
 
@@ -982,7 +976,6 @@ def UNetSmall(
     out_channels=3,
     base_width=32,
     num_classes=None,
-    guide_w=0.0,
     prob_drop_cond=0.0
 ):
     if image_size == 128:
@@ -1023,6 +1016,5 @@ def UNetSmall(
         use_scale_shift_norm=True,
         resblock_updown=True,
         use_new_attention_order=True,
-        w=guide_w,
         null_cond_prob=prob_drop_cond,
     )
