@@ -77,7 +77,8 @@ def generate_fixgroup_cifar10():
         )
     
     fix_num = 2500
-    options = [0, 250, 500, 1000, 2500, 5000, 10000, 20000, 40000]
+    # 0%, 20%, 40%, 60%, 80%, 100%, 200%, 400%, 800%, 1600%
+    options = [0, 500, 1000, 1500, 2000, 2500, 5000, 10000, 20000, 40000]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -192,7 +193,7 @@ class CIFAR10_ColorGray(datasets.CIFAR10):
         # decide color or grayscale
         if index in self.grayscale_index:
             assert index not in self.color_index
-            img = rgb_to_grayscale(img)
+            img = rgb_to_gray(img)
             img = img.astype(np.uint8)
         else:
             assert index in self.color_index
@@ -280,7 +281,6 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
     
     def __getitem__(self, index):
         img_idx = self.image_index[index]
-        print(img_idx)
         img, target = self.data[img_idx], self.targets[img_idx]
 
         # decide color or grayscale
@@ -308,6 +308,6 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
 if __name__ == "__main__":
     # generate_index_cifar10()
     # check_cifar10_index()
-    # generate_fixgroup_cifar10()
-    check_fixgroup_cifar10()
+    generate_fixgroup_cifar10()
+    # check_fixgroup_cifar10()
     

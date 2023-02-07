@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8     # Specify the number of CPUs your task will need.
 #SBATCH --gres=gpu:rtx_2080:2          # the number of GPUs requested
 #SBATCH --mem=24G             # memory 
-#SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-02-02/cifar10_train_color1.0_gray0.0_cond_drop_prob_0.2.txt            # where stdout and stderr will write to
+#SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-02-06/cifar10_train_color1.0_gray0.0_dropprob0.1.txt            # where stdout and stderr will write to
 #SBATCH -t 48:00:00           # time requested in hour:minute:second
 #SBATCH --mail-type=all       # choice between begin, end, all to notify you via email
 #SBATCH --mail-user=xl9353@cs.princeton.edu
@@ -15,9 +15,9 @@ source ~/.bashrc
 conda activate diffusion-bias
 cd /n/fs/xl-diffbia/projects/minimal-diffusion
 
-CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 --master_port 8106 main.py \
-    --arch UNet --dataset cifar10 --epochs 1000 --batch-size 256 --lr 1e-4 --sampling-steps 250 \
-    --data-dir ./datasets --diffusion-steps 1000 --ema_w 0.9995 --ckpt-sample-freq 200 \
-    --class-cond-dropout 0.2  --class-cond \
-    --save-dir ./logs/ --date 2023-02-02 \
+CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 --master_port 8105 main.py \
+    --arch UNet --dataset cifar10 --epochs 1001 --batch-size 256 --lr 1e-4 --sampling-steps 250 \
+    --data-dir ./datasets --diffusion-steps 1000 --ema_w 0.9995 --ckpt-sample-freq 100 \
+    --class-cond-dropout 0.1  --class-cond \
+    --save-dir ./logs/ --date 2023-02-06 \
     --color 1.0 --grayscale 0.0

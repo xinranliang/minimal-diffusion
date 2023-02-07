@@ -11,10 +11,11 @@ from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup
 from dataset.celeba import CelebA_Custom
 
 
-def get_metadata(name, color, grayscale):
+def get_metadata(name, fix, color, grayscale):
     if name == "cifar10":
-        if float(color) + float(grayscale) == 1.0:
+        if fix == "total":
             # fix total number of training images
+            assert float(color) + float(grayscale) == 1.0
             metadata = EasyDict(
                 {
                     "image_size": 32,
@@ -22,23 +23,23 @@ def get_metadata(name, color, grayscale):
                     "train_images": 50000,
                     "val_images": 10000,
                     "num_channels": 3,
-                    "color_ratio": color,
-                    "grayscale_ratio": grayscale,
+                    "color_ratio": float(color),
+                    "grayscale_ratio": float(grayscale),
                     "fix": "total",
                     "split": False
                 }
             )
-        elif isinstance(color, int) and isinstance(grayscale, int):
+        elif fix == "subgroup":
             # specify number of training images for each subgroup
             metadata = EasyDict(
                 {
                     "image_size": 32,
                     "num_classes": 10,
-                    "train_images": 50000,
+                    "train_images": int(color) + int(grayscale),
                     "val_images": 10000,
                     "num_channels": 3,
-                    "color_number": color,
-                    "gray_number": grayscale,
+                    "color_number": int(color),
+                    "gray_number": int(grayscale),
                     "fix": "subgroup",
                     "split": False
                 }
@@ -102,7 +103,7 @@ def get_dataset(name, data_dir, metadata):
                 split = False
             )
         elif metadata.fix == "subgroup":
-            train_set = CIFAR10_ColorGray(
+            train_set = CIFAR10_FixGroup(
                 root=os.path.join(data_dir, "cifar10"),
                 train=True,
                 download=False,
