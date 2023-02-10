@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 from cleanfid import fid
 
 from precision_recall import compute_precision_recall
-from utils import rgb_to_grayscale
 
 
 def process_real(dataset, resolution, num_channels=3, mode="none"):
@@ -116,6 +115,8 @@ def main(args):
     recall = precision_recall["recall"]
     print(f"{args.mode}-precision: {precision:.3f}")
     print(f"{args.mode}-recall: {recall:.3f}")
+
+    return
 
 
 if __name__ == '__main__':

@@ -259,7 +259,7 @@ def main(args):
                 os.path.join(
                     log_dir,
                     "samples_ema",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
                 ),
                 sampled_images,
                 labels,
@@ -270,7 +270,7 @@ def main(args):
                 os.path.join(
                     log_dir,
                     "samples",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
                 ),
                 sampled_images,
                 labels,

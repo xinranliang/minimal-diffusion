@@ -37,7 +37,7 @@ def main_guidance():
         for w in w_lst:
             args.sample_file = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
                                 args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
-                                args.diffusion_config, "samples",
+                                args.diffusion_config, "samples_ema",
                                 "guidance", "class_{}".format(class_label),
                                 "{}_guidance{}.npz".format(args.sample_config, w))
             
@@ -51,7 +51,7 @@ def main_guidance():
 
             file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs", 
                                 args.date, args.dataset, "color{}_gray{}".format(args.train_color, args.train_gray), 
-                                args.diffusion_config, "samples", "guidance", "class_{}".format(class_label),
+                                args.diffusion_config, "samples_ema", "guidance", "class_{}".format(class_label),
                                 "{}_guidance{}_viz{}.png".format(args.sample_config, w, args.num_visualize))
             
             cv2.imwrite(

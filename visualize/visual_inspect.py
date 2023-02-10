@@ -12,8 +12,8 @@ def get_args():
     parser = argparse.ArgumentParser("Qualitative inspection of underrepresented groups and overrepresented groups samples")
 
     parser.add_argument('--dataset', type=str, help="which dataset we use for training and evaluation")
-    parser.add_argument('--train-color', type=float, help="manually set portion of color images in training distribution")
-    parser.add_argument('--train-gray', type=float, help="manually set portion of gray images in training distribution")
+    parser.add_argument('--train-color', help="manually set portion of color images in training distribution")
+    parser.add_argument('--train-gray', help="manually set portion of gray images in training distribution")
 
     parser.add_argument('--num-samples', type=int, default=50000, help="number of samples available in total")
     parser.add_argument('--num-visualize', type=int, default=200, help="number of images to visualize, should be square number n^2")

@@ -36,7 +36,7 @@ def generate_index_cifar10():
                 transforms.ToTensor(),
             ]
         )
-    for color, gray in zip([0.99, 0.95, 0.9, 0.1, 0.05, 0.01], [0.01, 0.05, 0.1, 0.9, 0.95, 0.99]):
+    for color, gray in zip([0.99, 0.95, 0.9, 0.7, 0.5, 0.3, 0.1, 0.05, 0.01], [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 0.99]):
         cifar10 = CIFAR10_ColorGray(
             root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
             train=True,
@@ -306,8 +306,8 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
     
 
 if __name__ == "__main__":
-    # generate_index_cifar10()
+    generate_index_cifar10()
     # check_cifar10_index()
-    generate_fixgroup_cifar10()
+    # generate_fixgroup_cifar10()
     # check_fixgroup_cifar10()
     
