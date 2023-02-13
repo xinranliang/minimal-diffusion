@@ -82,8 +82,9 @@ def array_to_image(path, folder="./logs/temp"):
     assert len(images.shape) == 4, "Images must be a batch"
     num_images = images.shape[0]
     for idx in range(num_images):
-        image = Image.fromarray(images[idx], "RGB")
-        image.save(os.path.join(folder, "sample_%05d.png" % (idx)))
+        # image = Image.fromarray(images[idx], "RGB")
+        # image.save(os.path.join(folder, "sample_%05d.png" % (idx)))
+        cv2.imwrite(os.path.join(folder, "sample_%05d.png" % (idx)), images[idx, :, :, ::-1])
 
 
 def main(args):
