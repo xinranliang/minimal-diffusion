@@ -50,6 +50,19 @@ def count_channel_std(channel_std, threshold=1.0):
     print("Number of grayscaled samples: {}".format(num_gray))
 
 
+def count_colorgray(samples, threshold=1.0):
+    # input: numpy array of samples in np.uint8 format
+    # output: number of color and number of gray
+    # check std of channel
+    channel_std = np.std(samples, axis=-1) # num_samples x height x width
+    channel_std = channel_std.reshape((channel_std.shape[0], channel_std.shape[1] * channel_std.shape[2])) # num_samples x (height x width)
+    channel_std = np.mean(channel_std, axis=-1) # num_samples x 1
+    num_color = np.sum(channel_std >= threshold)
+    num_gray = np.sum(channel_std < threshold)
+    assert num_color + num_gray == channel_std.shape[0]
+    return {"num_color": num_color, "num_gray": num_gray}
+
+
 def get_args():
     parser = argparse.ArgumentParser("Measure generation samplng distribution compared to training distribution")
 

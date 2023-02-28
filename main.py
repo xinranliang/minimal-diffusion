@@ -17,6 +17,7 @@ from dataset.data import get_metadata, get_dataset
 from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_color_images, sample_gray_images, sample_N_images_cond
 import model.unets as unets
 import utils
+from metrics.color_gray import count_colorgray
 
 
 def get_args():
@@ -189,54 +190,32 @@ def main(args):
     os.makedirs(log_dir, exist_ok=True)
 
     if args.guidance:
-        guidance_w = [0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 2.0, 4.0, 8.0]
+        if args.local_rank == 0:
+            print("Checkpoint: {} \n".format(args.ckpt_name))
+        guidance_w = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]
 
         for w in guidance_w:
             args.classifier_free_w = w 
 
-            for class_label in range(metadata.num_classes):
-                if "ema" in args.ckpt_name:
-                    os.makedirs(os.path.join(log_dir, "samples_ema", "guidance", "class_{}".format(class_label)), exist_ok=True)
-                else:
-                    os.makedirs(os.path.join(log_dir, "samples", "guidance", "class_{}".format(class_label)), exist_ok=True)
+            sampled_images, labels = sample_N_images(
+                args.num_sampled_images,
+                model,
+                diffusion,
+                None,
+                args.sampling_steps,
+                args.batch_size,
+                metadata.num_channels,
+                metadata.image_size,
+                metadata.num_classes,
+                args,
+            )
 
-                sampled_images, labels = sample_N_images_cond(
-                    args.num_sampled_images,
-                    model,
-                    diffusion,
-                    class_label,
-                    None,
-                    args.sampling_steps,
-                    args.batch_size,
-                    metadata.num_channels,
-                    metadata.image_size,
-                    args,
-                )
+            colorgray_dict = count_colorgray(sampled_images)
+            if args.local_rank == 0:
+                print("Sample with guidance {} \n".format(w))
+                print("Number of color: {} \n".format(colorgray_dict["num_color"]))
+                print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
 
-                if "ema" in args.ckpt_name:
-                    np.savez(
-                        os.path.join(
-                            log_dir,
-                            "samples_ema",
-                            "guidance",
-                            "class_{}".format(class_label),
-                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
-                        ),
-                        sampled_images,
-                        labels,
-                    )
-                else:
-                    np.savez(
-                        os.path.join(
-                            log_dir,
-                            "samples",
-                            "guidance",
-                            "class_{}".format(class_label),
-                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
-                        ),
-                        sampled_images,
-                        labels,
-                    )
         return
 
     # sampling

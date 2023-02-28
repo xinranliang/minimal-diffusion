@@ -76,9 +76,9 @@ def generate_fixgroup_cifar10():
             ]
         )
     
-    fix_num = 2500
+    fix_num = 25000
     # 0%, 20%, 40%, 60%, 80%, 100%, 200%, 400%, 800%, 1600%
-    options = [0, 500, 1000, 1500, 2000, 2500, 5000, 10000, 20000, 40000]
+    options = [0, 5000, 10000, 15000, 20000, 25000]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -100,8 +100,8 @@ def check_fixgroup_cifar10():
             ]
         )
     
-    fix_num = 2500
-    options = [0, 250, 500, 1000, 2500, 5000, 10000, 20000, 40000]
+    fix_num = 5000
+    options = [0, 5000, 10000, 20000, 30000, 40000]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -231,7 +231,14 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
 
         # get color index and gray index
         if split == True and self.color_number != 0 and self.gray_number != 0:
-            split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+            if self.color_number == 2500:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+            elif self.color_number == 5000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+            elif self.color_number == 25000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+            else: 
+                raise NotImplementedError
             with open(split_file_path, "rb") as f:
                 file_load = pickle.load(f)
             self.color_index = file_load["color_index"]
@@ -247,7 +254,14 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
         
         elif split == True and (self.color_number == 0 or self.gray_number == 0):
             # one of subgroup has no instance
-            split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+            if self.color_number == 2500:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+            elif self.color_number == 5000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+            elif self.color_number == 25000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+            else: 
+                raise NotImplementedError
             with open(split_file_path, "rb") as f:
                 file_load = pickle.load(f)
             self.color_index = file_load["color_index"]
@@ -306,8 +320,8 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
     
 
 if __name__ == "__main__":
-    generate_index_cifar10()
+    # generate_index_cifar10()
     # check_cifar10_index()
-    # generate_fixgroup_cifar10()
+    generate_fixgroup_cifar10()
     # check_fixgroup_cifar10()
     
