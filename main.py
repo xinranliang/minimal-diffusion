@@ -434,25 +434,25 @@ def main(args):
         cv2.imwrite(
             os.path.join(
                 sample_dir,
-                "epoch_final.png",
+                f"epoch_{epoch}.png",
             ),
             np.concatenate(sampled_images, axis=1)[:, :, ::-1],
         )
 
-    torch.save(
-        model.state_dict(),
-        os.path.join(
-            model_dir,
-            "epoch_final.pth",
-        ),
-    )
-    torch.save(
-        args.ema_dict,
-        os.path.join(
-            model_dir,
-            f"epoch_final_ema_{args.ema_w}.pth",
-        ),
-    )
+        torch.save(
+            model.state_dict(),
+            os.path.join(
+                model_dir,
+                f"epoch_{epoch}.pth",
+            ),
+        )
+        torch.save(
+            args.ema_dict,
+            os.path.join(
+                model_dir,
+                f"epoch_{epoch}_ema_{args.ema_w}.pth",
+            ),
+        )
 
 
 if __name__ == "__main__":

@@ -76,9 +76,9 @@ def generate_fixgroup_cifar10():
             ]
         )
     
-    fix_num = 25000
+    fix_num = 15000
     # 0%, 20%, 40%, 60%, 80%, 100%, 200%, 400%, 800%, 1600%
-    options = [0, 5000, 10000, 15000, 20000, 25000]
+    options = [0, 5000, 10000, 15000, 20000, 25000, 30000, 35000]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -100,8 +100,8 @@ def check_fixgroup_cifar10():
             ]
         )
     
-    fix_num = 5000
-    options = [0, 5000, 10000, 20000, 30000, 40000]
+    fix_num = 15000
+    options = [0, 5000, 10000, 15000, 20000, 25000, 30000, 35000]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -235,6 +235,8 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
                 split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
             elif self.color_number == 5000:
                 split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+            elif self.color_number == 15000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
             elif self.color_number == 25000:
                 split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
             else: 
@@ -258,6 +260,8 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
                 split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
             elif self.color_number == 5000:
                 split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+            elif self.color_number == 15000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
             elif self.color_number == 25000:
                 split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
             else: 
