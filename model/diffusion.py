@@ -308,8 +308,8 @@ def sample_color_images(
             samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
             dist.all_gather(samples_list, gen_images, group)
             curr_samples = torch.cat(samples_list).detach() # torch tensor: (num_samples x num_channel x height x width)
-            channel_std = torch.std(curr_samples, dim=1).reshape(curr_samples.shape[0], curr_samples.shape[2] * curr_samples.shape[3]).mean(-1) # (num_samples x 1 x height x width)
-            index_select = torch.nonzero(channel_std >= 1 / 127.5).reshape(-1)
+            channel_std = torch.std(curr_samples, dim=1).reshape(curr_samples.shape[0], curr_samples.shape[2] * curr_samples.shape[3]).amax(-1) # (num_samples x 1 x height x width)
+            index_select = torch.nonzero(channel_std >= 0.13).reshape(-1)
             select_samples = torch.index_select(curr_samples, dim=0, index=index_select)
             samples.append(select_samples.cpu().numpy())
 
@@ -362,8 +362,8 @@ def sample_gray_images(
             samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
             dist.all_gather(samples_list, gen_images, group)
             curr_samples = torch.cat(samples_list).detach() # torch tensor: (num_samples x num_channel x height x width)
-            channel_std = torch.std(curr_samples, dim=1).reshape(curr_samples.shape[0], curr_samples.shape[2] * curr_samples.shape[3]).mean(-1) # (num_samples x 1 x height x width)
-            index_select = torch.nonzero(channel_std < 1 / 127.5).reshape(-1)
+            channel_std = torch.std(curr_samples, dim=1).reshape(curr_samples.shape[0], curr_samples.shape[2] * curr_samples.shape[3]).amax(-1) # (num_samples x 1 x height x width)
+            index_select = torch.nonzero(channel_std < 0.13).reshape(-1)
             select_samples = torch.index_select(curr_samples, dim=0, index=index_select)
             samples.append(select_samples.cpu().numpy())
 

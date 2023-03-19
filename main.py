@@ -216,6 +216,29 @@ def main(args):
                 print("Number of color: {} \n".format(colorgray_dict["num_color"]))
                 print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
 
+            if "ema" in args.ckpt_name:
+                os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
+                np.savez(
+                    os.path.join(
+                        log_dir,
+                        "samples_ema",
+                        f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                    ),
+                    sampled_images,
+                    labels,
+                )
+            else:
+                os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+                np.savez(
+                    os.path.join(
+                        log_dir,
+                        "samples",
+                        f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                    ),
+                    sampled_images,
+                    labels,
+                )
+
         return
 
     # sampling
@@ -254,7 +277,11 @@ def main(args):
                 sampled_images,
                 labels,
             )
-        print("Finish sampling from pretrained checkpoint! Return")
+        colorgray_dict = count_colorgray(sampled_images)
+        if args.local_rank == 0:
+            print("Number of color: {} \n".format(colorgray_dict["num_color"]))
+            print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
+            print("Finish sampling from pretrained checkpoint! Return")
         return
     if args.sampling_color_only:
         sampled_images, labels = sample_color_images(
