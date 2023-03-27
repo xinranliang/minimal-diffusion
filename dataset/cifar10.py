@@ -78,7 +78,7 @@ def generate_fixgroup_cifar10():
     
     fix_num = 15000
     # 0%, 20%, 40%, 60%, 80%, 100%, 200%, 400%, 800%, 1600%
-    options = [0, 5000, 10000, 15000, 20000, 25000, 30000, 35000]
+    options = [2500, 5000, 15000, 25000, 35000, 45000, 47500]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -87,8 +87,8 @@ def generate_fixgroup_cifar10():
                 transform=transform_train,
                 target_transform=None,
                 download=False,
-                color_number=fix_num,
-                gray_number=number,
+                color_number=number,
+                gray_number=0,
                 split=True # whether we're performing one-off splitting
         )
 
@@ -239,6 +239,12 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
                 split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
             elif self.color_number == 25000:
                 split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+            elif self.color_number == 35000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+            elif self.color_number == 45000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+            elif self.color_number == 47500:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
             else: 
                 raise NotImplementedError
             with open(split_file_path, "rb") as f:
@@ -264,6 +270,12 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
                 split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
             elif self.color_number == 25000:
                 split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+            elif self.color_number == 35000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+            elif self.color_number == 45000:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+            elif self.color_number == 47500:
+                split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
             else: 
                 raise NotImplementedError
             with open(split_file_path, "rb") as f:

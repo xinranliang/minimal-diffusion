@@ -104,7 +104,7 @@ def count_channel_std(channel_std, threshold=16.36):
     print("Number of grayscaled samples: {}".format(num_gray))
 
 
-def count_colorgray(samples, threshold=16.36):
+def count_colorgray(samples, threshold=0.75):
     # input: numpy array of samples in np.uint8 format
     # output: number of color and number of gray
     # check std of channel

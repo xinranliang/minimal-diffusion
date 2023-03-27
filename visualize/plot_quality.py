@@ -23,7 +23,7 @@ def plot_fid(fid_arr, title, fig_name):
     plt.xlim(105, 0)
     plt.xlabel("Percentage in training distribution (%)")
     plt.xticks(xs, xs)
-    plt.ylabel("FID")
+    plt.ylabel("FID ($\downarrow$)")
     plt.title(title)
 
     for i, v in enumerate(xs):
@@ -215,6 +215,146 @@ def plot_020607():
                 "/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-07/cifar10/figures", "subgroup",
                 "Number of gray images in training distribution (in thousands)")
 
+
+def plot_fixtotal():
+    xs = [100, 95, 90, 70, 50, 30, 10, 5]
+
+    # plot color
+    fid_color = [5.379, 5.312, 5.489, 5.946, 5.838, 6.143, 6.612, 7.993]
+    precision_color = [0.68, 0.669, 0.677, 0.678, 0.672, 0.66, 0.66, 0.66]
+    recall_color = [0.597, 0.602, 0.602, 0.586, 0.581, 0.593, 0.584, 0.581]
+
+    plt.figure(figsize=(8, 8/1.6))
+    with plt.style.context('ggplot'):
+        plt.plot(xs, fid_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue")
+        plt.xlim(105, 0)
+        plt.xlabel("Percentage in training distribution ($\%$)", fontsize=10)
+        plt.xticks(xs, xs)
+        # plt.ylim(3, 12)
+        plt.ylabel("FID ($\downarrow$)", fontsize=10)
+        plt.title("Class-conditional color generation quality", fontsize=10)
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_fid_color.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_fid_color.pdf"), dpi=300, bbox_inches="tight")
+    plt.close()
+
+    plt.figure(figsize=(8, 8/1.6))
+    with plt.style.context('ggplot'):
+        plt.plot(xs, precision_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue", label="Precision")
+        plt.plot(xs, recall_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="green", markerfacecolor="green", label="Recall")
+        plt.xlim(105, 0)
+        plt.xlabel("Percentage in training distribution ($\%$)", fontsize=10)
+        plt.xticks(xs, xs)
+        # plt.ylim(0.55, 0.75)
+        plt.ylabel(r"Precision and Recall ($\uparrow$)", fontsize=10)
+        plt.title("Class-conditional color generation quality", fontsize=10)
+        plt.legend()
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_precision_recall_color.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_precision_recall_color.pdf"), dpi=300, bbox_inches="tight")
+    plt.close()
+
+    # plot gray
+    fid_gray = [3.36, 3.809, 3.752, 5.721, 4.363, 5.883, 6.514, 7.42]
+    precision_gray = [0.739, 0.74, 0.738, 0.743, 0.727, 0.739, 0.735, 0.724]
+    recall_gray = [0.597, 0.592, 0.595, 0.559, 0.594, 0.567, 0.569, 0.565]
+
+    plt.figure(figsize=(8, 8/1.6))
+    with plt.style.context('ggplot'):
+        plt.plot(xs, fid_gray, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue")
+        plt.xlim(105, 0)
+        plt.xlabel("Percentage in training distribution ($\%$)", fontsize=10)
+        plt.xticks(xs, xs)
+        # plt.ylim(3, 8)
+        plt.ylabel("FID ($\downarrow$)", fontsize=10)
+        plt.title("Class-conditional gray generation quality", fontsize=10)
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_fid_gray.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_fid_gray.pdf"), dpi=300, bbox_inches="tight")
+    plt.close()
+
+    plt.figure(figsize=(8, 8/1.6))
+    with plt.style.context('ggplot'):
+        plt.plot(xs, precision_gray, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue", label="Precision")
+        plt.plot(xs, recall_gray, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="green", markerfacecolor="green", label="Recall")
+        plt.xlim(105, 0)
+        plt.xlabel("Percentage in training distribution ($\%$)", fontsize=10)
+        plt.xticks(xs, xs)
+        # plt.ylim(0.55, 0.75)
+        plt.ylabel(r"Precision and Recall ($\uparrow$)", fontsize=10)
+        plt.title("Class-conditional gray generation quality", fontsize=10)
+        plt.legend()
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_precision_recall_gray.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-06/cifar10/figures", "fixtotal_precision_recall_gray.pdf"), dpi=300, bbox_inches="tight")
+    plt.close()
+
+def plot_fixcolor(num_color):
+    if num_color == 15000:
+        xs = np.array([0, 5000, 10000, 15000, 20000, 25000, 30000, 35000], dtype=float) / num_color
+        xs = np.around(xs, 3)
+        fid_color = [9.419, 7.945, 7.05, 6.506, 6.613, 6.228, 5.875, 6.143]
+        precision_color = [0.682, 0.692, 0.687, 0.69, 0.684, 0.668, 0.674, 0.668]
+        recall_color = [0.53, 0.55, 0.558, 0.566, 0.57, 0.591, 0.586, 0.597]
+
+        plt.figure(figsize=(8, 8/1.6))
+        with plt.style.context('ggplot'):
+            plt.plot(xs, fid_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue")
+            plt.xlabel("Percentage of Gray training samples relative to Color training samples", fontsize=10)
+            plt.xticks(xs, xs)
+            plt.ylabel("FID ($\downarrow$)", fontsize=10)
+            plt.title("Class-conditional color generation quality (N_color = 15k)", fontsize=10)
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-18/cifar10/figures", "fixcolor_fid_15k.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-18/cifar10/figures", "fixcolor_fid_15k.pdf"), dpi=300, bbox_inches="tight")
+        plt.close()
+
+        plt.figure(figsize=(8, 8/1.6))
+        with plt.style.context('ggplot'):
+            plt.plot(xs, precision_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue", label="Precision")
+            plt.plot(xs, recall_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="green", markerfacecolor="green", label="Recall")
+            plt.xlabel("Percentage of Gray training samples relative to Color training samples", fontsize=10)
+            plt.xticks(xs, xs)
+            plt.ylabel(r"Precision and Recall ($\uparrow$)", fontsize=10)
+            plt.title("Class-conditional color generation quality (N_color = 15k)", fontsize=10)
+            plt.legend()
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-18/cifar10/figures", "fixcolor_precision_recall_15k.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-18/cifar10/figures", "fixcolor_precision_recall_15k.pdf"), dpi=300, bbox_inches="tight")
+        plt.close()
+
+    elif num_color == 25000:
+        xs = np.array([0, 5000, 10000, 15000, 20000, 25000], dtype=float) / num_color
+        xs = np.around(xs, 3)
+        fid_color = [6.301, 5.974, 6.123, 6.049, 5.805, 5.943]
+        precision_color = [0.682, 0.691, 0.69, 0.672, 0.68, 0.676]
+        recall_color = [0.586, 0.58, 0.584, 0.594, 0.586, 0.588]
+
+        plt.figure(figsize=(8, 8/1.6))
+        with plt.style.context('ggplot'):
+            plt.plot(xs, fid_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue")
+            plt.xlabel("Percentage of Gray training samples relative to Color training samples", fontsize=10)
+            plt.xticks(xs, xs)
+            plt.ylabel("FID", fontsize=10)
+            plt.title("Class-conditional color generation quality (N_color = 25k)", fontsize=10)
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-21/cifar10/figures", "fixcolor_fid_25k.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-21/cifar10/figures", "fixcolor_fid_25k.pdf"), dpi=300, bbox_inches="tight")
+        plt.close()
+
+        plt.figure(figsize=(8, 8/1.6))
+        with plt.style.context('ggplot'):
+            plt.plot(xs, precision_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="blue", markerfacecolor="blue", label="Precision")
+            plt.plot(xs, recall_color, linestyle="-", linewidth=1, color="black", marker="o", markersize=5, markeredgecolor="green", markerfacecolor="green", label="Recall")
+            plt.xlabel("Percentage of Gray training samples relative to Color training samples", fontsize=10)
+            plt.xticks(xs, xs)
+            plt.ylabel("Precision and Recall", fontsize=10)
+            plt.title("Class-conditional color generation quality (N_color = 25k)", fontsize=10)
+            plt.legend()
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-21/cifar10/figures", "fixcolor_precision_recall_25k.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-02-21/cifar10/figures", "fixcolor_precision_recall_25k.pdf"), dpi=300, bbox_inches="tight")
+        plt.close()
+
+    else:
+        raise NotImplementedError
+    
+
+
+
+
 if __name__ == "__main__":
     args = get_args()
     
@@ -222,3 +362,7 @@ if __name__ == "__main__":
         plot_0122(args.output_dir)
     elif args.date == "2023-02-06" or args.date == "2023-02-07":
         plot_020607()
+    elif args.date == "2023-03-22":
+        plot_fixtotal()
+        # plot_fixcolor(num_color = 15000)
+        # plot_fixcolor(num_color = 25000)

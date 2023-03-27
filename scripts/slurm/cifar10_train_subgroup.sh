@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8     # Specify the number of CPUs your task will need.
 #SBATCH --gres=gpu:rtx_2080:2          # the number of GPUs requested
 #SBATCH --mem=24G             # memory 
-#SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-03-18/cifar10_train_color15_gray30_cond_droprob0.1.txt            # where stdout and stderr will write to
+#SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-03-27/cifar10_train_cond_color47.5_gray0_droprob0.1.txt            # where stdout and stderr will write to
 #SBATCH -t 48:00:00           # time requested in hour:minute:second
 #SBATCH --mail-type=all       # choice between begin, end, all to notify you via email
 #SBATCH --mail-user=xl9353@cs.princeton.edu
@@ -19,8 +19,8 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 -
     --arch UNet --dataset cifar10 --epochs $2 --batch-size 256 --lr 1e-4 --sampling-steps 250 \
     --data-dir ./datasets --diffusion-steps 1000 --ema_w 0.9995 --ckpt-sample-freq 250 \
     --class-cond --class-cond-dropout 0.1 \
-    --save-dir ./logs/ --date 2023-03-18 \
-    --color 15000 --grayscale $1 --fix subgroup
+    --save-dir ./logs/ --date 2023-03-27 \
+    --color $1 --grayscale 0 --fix subgroup
 
 # compute number of training epochs:
     # 2500C + 0G: 20001
@@ -57,3 +57,7 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 -
     # 15k C + 25k G: 1250
     # 15k C + 30k G: 1111
     # 15k C + 35k G: 1000
+
+    # 35k C + 0G: 1500
+    # 45k C + 0G: 1111
+    # 47.5k C + 0G: 1055
