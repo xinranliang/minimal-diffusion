@@ -78,7 +78,7 @@ def generate_fixgroup_cifar10():
     
     fix_num = 15000
     # 0%, 20%, 40%, 60%, 80%, 100%, 200%, 400%, 800%, 1600%
-    options = [2500, 5000, 15000, 25000, 35000, 45000, 47500]
+    options = [0, 5000, 10000, 15000, 20000, 25000, 30000]
 
     for number in options:
         cifar10 = CIFAR10_FixGroup(
@@ -87,10 +87,14 @@ def generate_fixgroup_cifar10():
                 transform=transform_train,
                 target_transform=None,
                 download=False,
-                color_number=number,
-                gray_number=0,
+                fix="color",
+                color_number=fix_num,
+                gray_number=number,
                 split=True # whether we're performing one-off splitting
         )
+        print("Construct dataset with {} color and {} gray images".format(fix_num, number))
+        print("Color index has length {}".format(len(cifar10.color_index)))
+        print("Gray index has length {}".format(len(cifar10.gray_index)))
 
 def check_fixgroup_cifar10():
     transform_train = transforms.Compose(
@@ -219,6 +223,7 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
         transform,
         target_transform,
         download,
+        fix,
         color_number = None, 
         gray_number = None,
         split = False
@@ -228,31 +233,59 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
         self.num_classes = 10 # default 10 classes
         self.color_number = color_number
         self.gray_number = gray_number
+        self.fix = fix
 
         # get color index and gray index
         if split == True and self.color_number != 0 and self.gray_number != 0:
-            if self.color_number == 2500:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
-            elif self.color_number == 5000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
-            elif self.color_number == 15000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
-            elif self.color_number == 25000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
-            elif self.color_number == 35000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
-            elif self.color_number == 45000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
-            elif self.color_number == 47500:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
-            else: 
+            if self.fix == "color":
+                if self.color_number == 2500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                elif self.color_number == 5000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                elif self.color_number == 15000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                elif self.color_number == 25000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                elif self.color_number == 35000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                elif self.color_number == 45000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                elif self.color_number == 47500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                else: 
+                    raise NotImplementedError
+            elif self.fix == "gray":
+                if self.gray_number == 47500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                elif self.gray_number == 45000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                elif self.gray_number == 35000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                elif self.gray_number == 25000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                elif self.gray_number == 15000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                elif self.gray_number == 5000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                elif self.gray_number == 2500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                else: 
+                    raise NotImplementedError
+            else:
                 raise NotImplementedError
+
             with open(split_file_path, "rb") as f:
                 file_load = pickle.load(f)
             self.color_index = file_load["color_index"]
             self.gray_index = file_load["gray_index"]
-            assert self.gray_number <= len(self.gray_index)
-            self.gray_index = np.random.choice(self.gray_index, size=self.gray_number, replace=False)
+            if self.fix == "color":
+                assert self.gray_number <= len(self.gray_index)
+                self.gray_index = np.random.choice(self.gray_index, size=self.gray_number, replace=False)
+            elif self.fix == "gray":
+                assert self.color_number <= len(self.color_index)
+                self.color_index = np.random.choice(self.color_index, size=self.color_number, replace=False)
+            else:
+                raise NotImplementedError
 
             idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
 
@@ -262,26 +295,53 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
         
         elif split == True and (self.color_number == 0 or self.gray_number == 0):
             # one of subgroup has no instance
-            if self.color_number == 2500:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
-            elif self.color_number == 5000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
-            elif self.color_number == 15000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
-            elif self.color_number == 25000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
-            elif self.color_number == 35000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
-            elif self.color_number == 45000:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
-            elif self.color_number == 47500:
-                split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
-            else: 
+            if self.fix == "color":
+                if self.color_number == 2500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                elif self.color_number == 5000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                elif self.color_number == 15000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                elif self.color_number == 25000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                elif self.color_number == 35000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                elif self.color_number == 45000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                elif self.color_number == 47500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                else: 
+                    raise NotImplementedError
+            elif self.fix == "gray":
+                if self.gray_number == 47500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                elif self.gray_number == 45000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                elif self.gray_number == 35000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                elif self.gray_number == 25000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                elif self.gray_number == 15000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                elif self.gray_number == 5000:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                elif self.gray_number == 2500:
+                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                else: 
+                    raise NotImplementedError
+            else:
                 raise NotImplementedError
+
             with open(split_file_path, "rb") as f:
                 file_load = pickle.load(f)
-            self.color_index = file_load["color_index"]
-            self.gray_index = []
+            if self.fix == "color":
+                self.color_index = file_load["color_index"]
+                self.gray_index = []
+            elif self.fix == "gray":
+                self.gray_index = file_load["gray_index"]
+                self.color_index = []
+            else:
+                raise NotImplementedError
 
             idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
 

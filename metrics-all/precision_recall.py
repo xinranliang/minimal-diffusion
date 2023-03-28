@@ -228,7 +228,8 @@ def compute_precision_recall(fdir1, fdir2, mode, batch_size, num_workers, model_
     np_feats1 = get_folder_features(fdir1, model=feat_model, num_workers=num_workers, batch_size=batch_size, device=device, mode=mode)
     np_feats2 = get_folder_features(fdir2, model=feat_model, num_workers=num_workers, batch_size=batch_size, device=device, mode=mode)
     
-    print("Taking 10,000 image features at random")
-    rand_idx = np.random.choice(num_gen, num_eval, replace=False)
-    results = knn_precision_recall_features(np_feats1[rand_idx], np_feats2[rand_idx])
+    # print("Taking 10,000 image features at random")
+    # rand_idx = np.random.choice(num_gen, num_eval, replace=False)
+    # results = knn_precision_recall_features(np_feats1[rand_idx], np_feats2[rand_idx])
+    results = knn_precision_recall_features(np_feats1, np_feats2)
     return results

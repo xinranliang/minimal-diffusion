@@ -66,7 +66,7 @@ def get_args():
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--data-dir", type=str, default="./dataset/")
 
-    parser.add_argument("--fix", type=str, choices=["total", "subgroup"], default="total", help="specify how to split training distribution")
+    parser.add_argument("--fix", type=str, choices=["total", "color", "gray"], default="total", help="specify how to split training distribution")
     parser.add_argument("--color", help="ratio or number of training distribution to be turned into colored images")
     parser.add_argument("--grayscale", help="ratio or number of training distribution to be turned into grayscale images")
 

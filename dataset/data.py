@@ -29,7 +29,7 @@ def get_metadata(name, fix, color, grayscale):
                     "split": False
                 }
             )
-        elif fix == "subgroup":
+        elif fix == "color":
             # specify number of training images for each subgroup
             metadata = EasyDict(
                 {
@@ -40,7 +40,7 @@ def get_metadata(name, fix, color, grayscale):
                     "num_channels": 3,
                     "color_number": int(color),
                     "gray_number": int(grayscale),
-                    "fix": "subgroup",
+                    "fix": fix,
                     "split": False
                 }
             )
@@ -102,13 +102,14 @@ def get_dataset(name, data_dir, metadata):
                 grayscale_ratio=metadata.grayscale_ratio,
                 split = False
             )
-        elif metadata.fix == "subgroup":
+        elif metadata.fix == "color" or metadata.fix == "gray":
             train_set = CIFAR10_FixGroup(
                 root=os.path.join(data_dir, "cifar10"),
                 train=True,
                 download=False,
                 transform=transform_train,
                 target_transform=None,
+                fix=metadata.fix,
                 color_number=metadata.color_number,
                 gray_number=metadata.gray_number,
                 split=False
