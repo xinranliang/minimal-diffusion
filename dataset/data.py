@@ -11,7 +11,11 @@ from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup
 from dataset.celeba import CelebA_Custom
 
 
-def get_metadata(name, fix, color, grayscale):
+def get_metadata(
+    name, 
+    fix=None, color=None, grayscale=None, # this is for CIFAR10 2 domains
+    other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
+):
     if name == "cifar10":
         if fix == "total":
             # fix total number of training images
@@ -44,6 +48,16 @@ def get_metadata(name, fix, color, grayscale):
                     "split": False
                 }
             )
+    elif name == "cifar10-other":
+        metadata = EasyDict(
+            {
+                "image_size": 32,
+                "num_classes": 10,
+                "train_images": fix_num + other_num,
+                "val_images": 10000,
+                "num_channels": 3,
+            }
+        )
     elif name == "celeba":
         metadata = EasyDict(
             {
