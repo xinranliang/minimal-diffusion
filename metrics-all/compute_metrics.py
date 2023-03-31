@@ -101,13 +101,13 @@ def main(args):
     array_to_image(args.fake)
 
     # compute fid
-    """if args.real_mode == "color":
+    if args.real_mode == "color":
         fid_score = fid.compute_fid("./logs/temp/", mode=args.mode, dataset_name=args.dataset, dataset_res=args.resolution, dataset_split="train", batch_size = args.batch_size, num_workers = args.num_gpus * 4)
         print(f"{args.mode}-fid score with pre-computed statistics: {fid_score:.3f}")
 
     if args.real_mode == "gray":
         fid_score = fid.compute_fid(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
-        print(f"{args.mode}-fid score with folder-wise statistics: {fid_score:.3f}")"""
+        print(f"{args.mode}-fid score with folder-wise statistics: {fid_score:.3f}")
     
     # compute precision recall
     # check: fdir1 is real folder path and fdir2 is fake folder path

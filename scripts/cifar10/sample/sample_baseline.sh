@@ -20,15 +20,15 @@ cd /n/fs/xl-diffbia/projects/minimal-diffusion
 # cond all color
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
     --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-only --sampling-steps 250 \
-    --data-dir ./datasets --save-dir ./logs/ --date 2023-02-06 --color 1.0 --grayscale 0.0 --fix total \
+    --data-dir ./datasets --save-dir ./logs/ --date 2023-03-27 --color 1.0 --grayscale 0.0 --fix total \
     --class-cond --class-cond-dropout 0.1 --classifier-free-w 0.0 --diffusion-steps 1000 \
     --ckpt-name cifar10_cond_color1.0_gray0.0_puncond0.1_epoch1k_ema \
-    --pretrained-ckpt ./logs/2023-02-06/cifar10/color1.0_gray0.0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_256_dropprob_0.1/ckpt/epoch_1000_ema_0.9995.pth
+    --pretrained-ckpt ./logs/2023-03-27/cifar10/color1_gray0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_256_dropprob_0.1/ckpt/epoch_1000_ema_0.9995.pth
 
 # cond all gray
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
     --arch UNet --dataset cifar10 --batch-size 4096 --num-sampled-images 50000 --sampling-only --sampling-steps 250 \
-    --data-dir ./datasets --save-dir ./logs/ --date 2023-02-06 --color 0.0 --grayscale 1.0 --fix total \
+    --data-dir ./datasets --save-dir ./logs/ --date 2023-03-27 --color 0.0 --grayscale 1.0 --fix total \
     --class-cond --class-cond-dropout 0.1 --classifier-free-w 0.0 --diffusion-steps 1000 \
     --ckpt-name cifar10_cond_color0.0_gray1.0_puncond0.1_epoch1k_ema \
-    --pretrained-ckpt ./logs/2023-02-06/cifar10/color0.0_gray1.0/UNet_diffusionstep_1000_samplestep_1000_condition_True_lr_0.0001_bs_256_dropprob_0.1/ckpt/epoch_1000_ema_0.9995.pth
+    --pretrained-ckpt ./logs/2023-03-27/cifar10/color0_gray1/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_256_dropprob_0.1/ckpt/epoch_1000_ema_0.9995.pth
