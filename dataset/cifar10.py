@@ -36,7 +36,7 @@ def generate_index_cifar10():
                 transforms.ToTensor(),
             ]
         )
-    for color, gray in zip([0.99, 0.95, 0.9, 0.7, 0.5, 0.3, 0.1, 0.05, 0.01], [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 0.99]):
+    for color, gray in zip([0.95, 0.9, 0.7, 0.5, 0.3, 0.1, 0.05], [0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 0.95]):
         cifar10 = CIFAR10_ColorGray(
             root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
             train=True,
@@ -135,7 +135,8 @@ class CIFAR10_ColorGray(datasets.CIFAR10):
         download,
         color_ratio = None, 
         grayscale_ratio = None,
-        split = False
+        split = False,
+        date = ""
     ):
         super().__init__(root, train, transform, target_transform, download=download)
 
@@ -156,7 +157,7 @@ class CIFAR10_ColorGray(datasets.CIFAR10):
 
             idx_dict = {"color_index": self.color_index, "gray_index": self.grayscale_index}
 
-            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_split.pkl".format(self.color_ratio, self.grayscale_ratio))
+            file_path = os.path.join(root, "color_gray_split", date, "color{}_gray{}_split.pkl".format(self.color_ratio, self.grayscale_ratio))
             with open(file_path, "wb") as f:
                 pickle.dump(idx_dict, f)
         
@@ -170,7 +171,7 @@ class CIFAR10_ColorGray(datasets.CIFAR10):
             self.grayscale_index = range(len(self.data))
         
         elif split == False:
-            split_file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_split.pkl".format(self.color_ratio, self.grayscale_ratio))
+            split_file_path = os.path.join(root, "color_gray_split", date, "color{}_gray{}_split.pkl".format(self.color_ratio, self.grayscale_ratio))
             with open(split_file_path, "rb") as f:
                 file_load = pickle.load(f)
             print("Loading color/gray split from file path {}".format(split_file_path))
@@ -226,7 +227,8 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
         fix,
         color_number = None, 
         gray_number = None,
-        split = False
+        split = False,
+        date = ""
     ):
         super().__init__(root, train, transform, target_transform, download=download)
 
@@ -239,36 +241,36 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
         if split == True and self.color_number != 0 and self.gray_number != 0:
             if self.fix == "color":
                 if self.color_number == 2500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.05_gray0.95_split.pkl")
                 elif self.color_number == 5000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.1_gray0.9_split.pkl")
                 elif self.color_number == 15000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.3_gray0.7_split.pkl")
                 elif self.color_number == 25000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.5_gray0.5_split.pkl")
                 elif self.color_number == 35000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.7_gray0.3_split.pkl")
                 elif self.color_number == 45000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.9_gray0.1_split.pkl")
                 elif self.color_number == 47500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.95_gray0.05_split.pkl")
                 else: 
                     raise NotImplementedError
             elif self.fix == "gray":
                 if self.gray_number == 47500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.05_gray0.95_split.pkl")
                 elif self.gray_number == 45000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.1_gray0.9_split.pkl")
                 elif self.gray_number == 35000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.3_gray0.7_split.pkl")
                 elif self.gray_number == 25000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.5_gray0.5_split.pkl")
                 elif self.gray_number == 15000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.7_gray0.3_split.pkl")
                 elif self.gray_number == 5000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.9_gray0.1_split.pkl")
                 elif self.gray_number == 2500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.95_gray0.05_split.pkl")
                 else: 
                     raise NotImplementedError
             else:
@@ -289,7 +291,7 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
 
             idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
 
-            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
+            file_path = os.path.join(root, "color_gray_split", date, "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
             with open(file_path, "wb") as f:
                 pickle.dump(idx_dict, f)
         
@@ -297,36 +299,36 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
             # one of subgroup has no instance
             if self.fix == "color":
                 if self.color_number == 2500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.05_gray0.95_split.pkl")
                 elif self.color_number == 5000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.1_gray0.9_split.pkl")
                 elif self.color_number == 15000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.3_gray0.7_split.pkl")
                 elif self.color_number == 25000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.5_gray0.5_split.pkl")
                 elif self.color_number == 35000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.7_gray0.3_split.pkl")
                 elif self.color_number == 45000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.9_gray0.1_split.pkl")
                 elif self.color_number == 47500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.95_gray0.05_split.pkl")
                 else: 
                     raise NotImplementedError
             elif self.fix == "gray":
                 if self.gray_number == 47500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.05_gray0.95_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.05_gray0.95_split.pkl")
                 elif self.gray_number == 45000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.1_gray0.9_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.1_gray0.9_split.pkl")
                 elif self.gray_number == 35000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.3_gray0.7_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.3_gray0.7_split.pkl")
                 elif self.gray_number == 25000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.5_gray0.5_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.5_gray0.5_split.pkl")
                 elif self.gray_number == 15000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.7_gray0.3_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.7_gray0.3_split.pkl")
                 elif self.gray_number == 5000:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.9_gray0.1_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.9_gray0.1_split.pkl")
                 elif self.gray_number == 2500:
-                    split_file_path = os.path.join(root, "color_gray_split", "color0.95_gray0.05_split.pkl")
+                    split_file_path = os.path.join(root, "color_gray_split", date, "color0.95_gray0.05_split.pkl")
                 else: 
                     raise NotImplementedError
             else:
@@ -345,12 +347,12 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
 
             idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
 
-            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
+            file_path = os.path.join(root, "color_gray_split", date, "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
             with open(file_path, "wb") as f:
                 pickle.dump(idx_dict, f)
 
         elif split == False:
-            file_path = os.path.join(root, "color_gray_split", "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
+            file_path = os.path.join(root, "color_gray_split", date, "color{}_gray{}_index.pkl".format(self.color_number, self.gray_number))
             with open(file_path, "rb") as f:
                 file_load = pickle.load(f)
             print("Loading color/gray index from file path {}".format(file_path))
@@ -396,7 +398,7 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
     
 
 if __name__ == "__main__":
-    # generate_index_cifar10()
+    generate_index_cifar10()
     # check_cifar10_index()
     generate_fixgroup_cifar10()
     # check_fixgroup_cifar10()

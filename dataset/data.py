@@ -12,7 +12,7 @@ from dataset.celeba import CelebA_Custom
 
 
 def get_metadata(
-    name, 
+    name, date,
     fix=None, color=None, grayscale=None, # this is for CIFAR10 2 domains
     other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
 ):
@@ -30,7 +30,8 @@ def get_metadata(
                     "color_ratio": float(color),
                     "grayscale_ratio": float(grayscale),
                     "fix": "total",
-                    "split": False
+                    "split": False,
+                    "date": date
                 }
             )
         elif fix == "color":
@@ -45,7 +46,8 @@ def get_metadata(
                     "color_number": int(color),
                     "gray_number": int(grayscale),
                     "fix": fix,
-                    "split": False
+                    "split": False,
+                    "date": date
                 }
             )
     elif name == "cifar10-other":
@@ -56,6 +58,7 @@ def get_metadata(
                 "train_images": fix_num + other_num,
                 "val_images": 10000,
                 "num_channels": 3,
+                "date": date
             }
         )
     elif name == "celeba":
@@ -114,7 +117,8 @@ def get_dataset(name, data_dir, metadata):
                 target_transform=None,
                 color_ratio=metadata.color_ratio,
                 grayscale_ratio=metadata.grayscale_ratio,
-                split = False
+                split = False,
+                date = metadata.date
             )
         elif metadata.fix == "color" or metadata.fix == "gray":
             train_set = CIFAR10_FixGroup(
@@ -126,7 +130,8 @@ def get_dataset(name, data_dir, metadata):
                 fix=metadata.fix,
                 color_number=metadata.color_number,
                 gray_number=metadata.gray_number,
-                split=False
+                split=False,
+                date = metadata.date
             )
     elif name == "celeba":
         # celebA has a large number of images, avoiding randomcropping.

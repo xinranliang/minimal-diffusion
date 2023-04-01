@@ -15,7 +15,7 @@ from cleanfid import fid
 from precision_recall import compute_precision_recall
 
 
-def process_real(dataset, resolution, num_channels=3, mode="none"):
+def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
     r"""
     Function to save real images train split into a specific folder, used for computing FID statistics
 
@@ -29,15 +29,30 @@ def process_real(dataset, resolution, num_channels=3, mode="none"):
     """
 
     root_dir = os.path.join("./datasets", dataset)
+    image_index = None
+    if args.date != "none":
+        if mode == "color":
+            with open(os.path.join(root_dir, "color_gray_split", date, "color15000_gray0_index.pkl"), "rb") as f:
+                image_index = pickle.load(f)["color_index"]
+        elif mode == "gray":
+            with open(os.path.join(root_dir, "color_gray_split", date, "color0_gray15000_index.pkl"), "rb") as f:
+                image_index = pickle.load(f)["gray_index"]
     
     if dataset == "cifar10":
         root_dir = os.path.join(root_dir, "cifar-10-batches-py")
 
         # train split
-        if mode == "color":
-            save_folder = os.path.join("./logs/cifar10_color")
-        elif mode == "gray":
-            save_folder = os.path.join("./logs/cifar10_gray")
+        if args.date == "none":
+            if mode == "color":
+                save_folder = os.path.join("./logs/cifar10_color")
+            elif mode == "gray":
+                save_folder = os.path.join("./logs/cifar10_gray")
+        else:
+            if mode == "color":
+                save_folder = os.path.join("./logs", args.date, "cifar10_color")
+            elif mode == "gray":
+                save_folder = os.path.join("./logs", args.date, "cifar10_gray")
+        os.makedirs(save_folder, exist_ok=True)
 
         img_idx = 0
         for num_batch in range(1, 6):
@@ -57,8 +72,12 @@ def process_real(dataset, resolution, num_channels=3, mode="none"):
                     image = Image.fromarray(images[idx], "RGB")
                 elif mode == "gray":
                     image = Image.fromarray(rgb_to_grayscale(images[idx]), "RGB")
-
-                image.save(os.path.join(save_folder, "train_%05d.png" % (img_idx)))
+                
+                if image_index is not None:
+                    if img_idx in image_index:
+                        image.save(os.path.join(save_folder, "train_%05d.png" % (img_idx)))
+                else:
+                    image.save(os.path.join(save_folder, "train_%05d.png" % (img_idx)))
                 img_idx += 1
         
         return save_folder
@@ -90,28 +109,51 @@ def array_to_image(path, folder="./logs/temp"):
 def main(args):
     real_path = None
     if args.save_real:
-        real_path = process_real(args.dataset, args.resolution, mode=args.real_mode)
+        if args.date == "none": # full 50k metrics
+            real_path = process_real(args.dataset, args.resolution, mode=args.real_mode)
+        else:
+            real_path = process_real(args.dataset, args.resolution, date=args.date, mode=args.real_mode)
+        return
     else: 
         if args.real_mode == "color":
-            real_path = "./logs/cifar10_color"
+            if args.date == "none": # full 50k metrics
+                real_path = "./logs/cifar10_color"
+            else:
+                real_path = os.path.join(".logs", args.date, "cifar10_color")
         elif args.real_mode == "gray":
-            real_path = "./logs/cifar10_gray"
+            if args.date == "none": # full 50k metrics
+                real_path = "./logs/cifar10_gray"
+            else:
+                real_path = os.path.join(".logs", args.date, "cifar10_gray")
     
     # construct image folder
-    array_to_image(args.fake)
+    if args.date == "none": # full 50k metrics
+        array_to_image(args.fake)
+    else:
+        fake_path = os.path.join("./logs", args.date, "tmp")
+        array_to_image(args.fake, folder=fake_path)
 
     # compute fid
     if args.real_mode == "color":
-        fid_score = fid.compute_fid("./logs/temp/", mode=args.mode, dataset_name=args.dataset, dataset_res=args.resolution, dataset_split="train", batch_size = args.batch_size, num_workers = args.num_gpus * 4)
-        print(f"{args.mode}-fid score with pre-computed statistics: {fid_score:.3f}")
+        if args.date == "none": # full 50k metrics
+            fid_score = fid.compute_fid("./logs/temp/", mode=args.mode, dataset_name=args.dataset, dataset_res=args.resolution, dataset_split="train", batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+        else:
+            fid_score = fid.compute_fid(real_path, fake_path, mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+        print(f"{args.mode}-fid score with folder-wise statistics: {fid_score:.3f}")
 
     if args.real_mode == "gray":
-        fid_score = fid.compute_fid(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+        if args.date == "none": # full 50k metrics
+            fid_score = fid.compute_fid(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+        else:
+            fid_score = fid.compute_fid(real_path, fake_path, mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
         print(f"{args.mode}-fid score with folder-wise statistics: {fid_score:.3f}")
     
     # compute precision recall
     # check: fdir1 is real folder path and fdir2 is fake folder path
-    precision_recall = compute_precision_recall(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+    if args.date == "none": # full 50k metrics
+        precision_recall = compute_precision_recall(real_path, "./logs/temp/", mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
+    else:
+        precision_recall = compute_precision_recall(real_path, fake_path, mode=args.mode, batch_size = args.batch_size, num_workers = args.num_gpus * 4)
     precision = precision_recall["precision"]
     recall = precision_recall["recall"]
     print(f"{args.mode}-precision: {precision:.3f}")
@@ -125,6 +167,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, required=True, help='real dataset to evaluate')
     parser.add_argument('--save-real', action="store_true", help="whether to save real dataset into folders")
     parser.add_argument('--real-mode', type=str, choices=["color", "gray"])
+    parser.add_argument('--date', type=str, default="none", help="specify date of experiments, if there is any, to handle varied runs of sampling subsets")
     parser.add_argument('--fake', type=str, required=True, help=('Path to the generated images'))
     parser.add_argument('--resolution', type=int, required=True, help='image resolution to compute metrics')
     parser.add_argument('--mode', type=str, default="clean", choices=["clean", "legacy_pytorch", "legacy_tensorflow"])

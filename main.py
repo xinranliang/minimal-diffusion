@@ -125,7 +125,7 @@ def main(args):
     # logger
     args.save_dir = os.path.join(args.save_dir, args.date, args.dataset)
 
-    metadata = get_metadata(args.dataset, args.fix, args.color, args.grayscale)
+    metadata = get_metadata(args.dataset, args.date, args.fix, args.color, args.grayscale)
 
     # distribute data parallel
     torch.backends.cudnn.benchmark = True
