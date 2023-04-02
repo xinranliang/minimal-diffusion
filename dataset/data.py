@@ -9,6 +9,7 @@ from torchvision import datasets, transforms
 
 from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup
 from dataset.celeba import CelebA_Custom
+from dataset.mix_cifar10_imagenet import Mix_CIFAR10ImageNet
 
 
 def get_metadata(
@@ -58,6 +59,21 @@ def get_metadata(
                 "train_images": fix_num + other_num,
                 "val_images": 10000,
                 "num_channels": 3,
+                "date": date
+            }
+        )
+    elif name == "mix-cifar10-imagenet":
+        metadata = EasyDict(
+            {
+                "image_size": 32,
+                "num_classes": 10,
+                "train_images": int(color) + int(grayscale),
+                "val_images": 10000,
+                "color_number": int(color),
+                "gray_number": int(grayscale),
+                "num_channels": 3,
+                "fix": fix,
+                "split": False,
                 "date": date
             }
         )
@@ -133,6 +149,23 @@ def get_dataset(name, data_dir, metadata):
                 split=False,
                 date = metadata.date
             )
+    elif name == "mix-cifar10-imagenet":
+        transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = Mix_CIFAR10ImageNet(
+            root = os.path.join(data_dir, "cifar10-imagenet/train"),
+            transform=transform_train,
+            target_transform=None,
+            fix=metadata.fix,
+            color_num=metadata.color_number,
+            gray_num=metadata.gray_number,
+            date=metadata.date,
+            split=False
+        )
     elif name == "celeba":
         # celebA has a large number of images, avoiding randomcropping.
         transform_train = transforms.Compose(

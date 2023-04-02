@@ -198,8 +198,16 @@ if __name__ == "__main__":
     # recover_imagenet()
     # generate index
     # imagenet
+
+    # number of cifar10 + imagenet samples
+    full_dataset = datasets.ImageFolder(
+                        root = "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+                        transform=transforms.Compose([transforms.ToTensor(),]),
+                        target_transform=None
+                    )
+    print(len(full_dataset))
     
-    for other_num in [5e3, 1e4, 1.5e4, 2e4, 2.5e4, 3e4, 3.5e4, 4e4, 4.5e4, 5e4, 6e4, 7e4, 8e4, 9e4, 1e5, 1.5e5, 2e5]:
+    """for other_num in [5e3, 1e4, 1.5e4, 2e4, 2.5e4, 3e4, 3.5e4, 4e4, 4.5e4, 5e4, 6e4, 7e4, 8e4, 9e4, 1e5, 1.5e5, 2e5]:
         generate_fix_cifar10_other_index(fix_num=50000, other_num=int(other_num), other_dataset="imagenet")
 
         myfull = CIFAR10_Other(
@@ -210,4 +218,4 @@ if __name__ == "__main__":
             fix_num=50000,
             other_num=int(other_num),
             other_name="imagenet"
-        )
+        )"""
