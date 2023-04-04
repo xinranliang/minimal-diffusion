@@ -83,7 +83,7 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
         return save_folder
 
 
-def array_to_image(path, folder="./logs/temp"):
+def array_to_image(path, num_images, folder="./logs/temp"):
     if path.endswith(".npy"):
         images = np.load(path)
     elif path.endswith("npz"):
@@ -99,7 +99,7 @@ def array_to_image(path, folder="./logs/temp"):
         assert images.min() >= 0 and images.max() <= 255
     
     assert len(images.shape) == 4, "Images must be a batch"
-    num_images = images.shape[0]
+    assert num_images <= images.shape[0], "Not enough available samples to evaluate!"
     for idx in range(num_images):
         # image = Image.fromarray(images[idx], "RGB")
         # image.save(os.path.join(folder, "sample_%05d.png" % (idx)))
@@ -119,19 +119,22 @@ def main(args):
             if args.date == "none": # full 50k metrics
                 real_path = "./logs/cifar10_color"
             else:
-                real_path = os.path.join(".logs", args.date, "cifar10_color")
+                real_path = os.path.join("./logs", args.date, "cifar10_color")
+                os.makedirs(real_path, exist_ok=True)
         elif args.real_mode == "gray":
             if args.date == "none": # full 50k metrics
                 real_path = "./logs/cifar10_gray"
             else:
-                real_path = os.path.join(".logs", args.date, "cifar10_gray")
+                real_path = os.path.join("./logs", args.date, "cifar10_gray")
+                os.makedirs(real_path, exist_ok=True)
     
     # construct image folder
     if args.date == "none": # full 50k metrics
-        array_to_image(args.fake)
+        array_to_image(args.fake, args.num_samples)
     else:
         fake_path = os.path.join("./logs", args.date, "tmp")
-        array_to_image(args.fake, folder=fake_path)
+        os.makedirs(fake_path, exist_ok=True)
+        array_to_image(args.fake, args.num_samples, folder=fake_path)
 
     # compute fid
     if args.real_mode == "color":
@@ -168,6 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('--save-real', action="store_true", help="whether to save real dataset into folders")
     parser.add_argument('--real-mode', type=str, choices=["color", "gray"])
     parser.add_argument('--date', type=str, default="none", help="specify date of experiments, if there is any, to handle varied runs of sampling subsets")
+    parser.add_argument('--num-samples', type=int, default=50000, help="number of samples used to compute metrics, handle different sizes of domain images")
     parser.add_argument('--fake', type=str, required=True, help=('Path to the generated images'))
     parser.add_argument('--resolution', type=int, required=True, help='image resolution to compute metrics')
     parser.add_argument('--mode', type=str, default="clean", choices=["clean", "legacy_pytorch", "legacy_tensorflow"])

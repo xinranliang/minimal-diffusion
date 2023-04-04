@@ -173,4 +173,4 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
 
 
 if __name__ == "__main__":
-    split_fixcolor(date="2023-04-02")
+    split_fixcolor(date="2023-04-03")

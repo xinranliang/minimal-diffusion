@@ -17,7 +17,7 @@ from dataset.data import get_metadata, get_dataset
 from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_color_images, sample_gray_images, sample_N_images_cond
 import model.unets as unets
 import utils
-from metrics.color_gray import count_colorgray
+from metrics.color_gray import count_colorgray, compute_colorgray
 
 
 def get_args():
@@ -197,47 +197,59 @@ def main(args):
         for w in guidance_w:
             args.classifier_free_w = w 
 
-            sampled_images, labels = sample_N_images(
-                args.num_sampled_images,
-                model,
-                diffusion,
-                None,
-                args.sampling_steps,
-                args.batch_size,
-                metadata.num_channels,
-                metadata.image_size,
-                metadata.num_classes,
-                args,
-            )
+            if args.sampling_only:
+                # sample first time
+                sampled_images, labels = sample_N_images(
+                    args.num_sampled_images,
+                    model,
+                    diffusion,
+                    None,
+                    args.sampling_steps,
+                    args.batch_size,
+                    metadata.num_channels,
+                    metadata.image_size,
+                    metadata.num_classes,
+                    args,
+                )
+            else:
+                # otherwise load previous samples
+                file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                file_load = np.load(file_path, allow_pickle=True)
+
+                sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                labels = file_load['arr_1'] # empty if class_cond = False
 
             colorgray_dict = count_colorgray(sampled_images)
+            colorgray_value = compute_colorgray(sampled_images)
             if args.local_rank == 0:
                 print("Sample with guidance {} \n".format(w))
                 print("Number of color: {} \n".format(colorgray_dict["num_color"]))
                 print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
-
-            if "ema" in args.ckpt_name:
-                os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
-                np.savez(
-                    os.path.join(
-                        log_dir,
-                        "samples_ema",
-                        f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
-                    ),
-                    sampled_images,
-                    labels,
-                )
-            else:
-                os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-                np.savez(
-                    os.path.join(
-                        log_dir,
-                        "samples",
-                        f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
-                    ),
-                    sampled_images,
-                    labels,
-                )
+                print("Mean value of channel std: {} \n".format(colorgray_value))
+            
+            if args.sampling_only:
+                if "ema" in args.ckpt_name:
+                    os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
+                    np.savez(
+                        os.path.join(
+                            log_dir,
+                            "samples_ema",
+                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                        ),
+                        sampled_images,
+                        labels,
+                    )
+                else:
+                    os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+                    np.savez(
+                        os.path.join(
+                            log_dir,
+                            "samples",
+                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                        ),
+                        sampled_images,
+                        labels,
+                    )
 
         return
 

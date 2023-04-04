@@ -59,7 +59,7 @@ def plot_natural_std(channel_std, title, log_dir="/n/fs/xl-diffbia/projects/mini
     output: plot distribution of channel std
     """
 
-    num_bins = 5000
+    num_bins = 50
     values, bins = np.histogram(channel_std, num_bins)
     pdf = values / sum(values)
     cdf = np.cumsum(pdf)
@@ -70,8 +70,20 @@ def plot_natural_std(channel_std, title, log_dir="/n/fs/xl-diffbia/projects/mini
     plt.title('Empirical CDF of Natural Color Images (CIFAR10)', fontsize=14)
 
     os.makedirs(os.path.join(log_dir, "figures"), exist_ok=True)
-    plt.savefig(os.path.join(log_dir, "figures", f"{title}.png"), dpi=80)
-    plt.savefig(os.path.join(log_dir, "figures", f"{title}.pdf"), dpi=80)
+    plt.savefig(os.path.join(log_dir, "figures", f"{title}_cdf.png"), dpi=80)
+    plt.savefig(os.path.join(log_dir, "figures", f"{title}_cdf.pdf"), dpi=80)
+    plt.close()
+
+    values, bins = np.histogram(channel_std, num_bins)
+    pdf = values / sum(values)
+    plt.plot(bins[1:], pdf)
+
+    plt.xlabel('RGB channel std value', fontsize=14)
+    plt.ylabel('Empirical PDF', fontsize=14)
+    plt.title('Empirical PDF of Natural Color Images (CIFAR10)', fontsize=14)
+
+    plt.savefig(os.path.join(log_dir, "figures", f"{title}_pdf.png"), dpi=80)
+    plt.savefig(os.path.join(log_dir, "figures", f"{title}_pdf.pdf"), dpi=80)
     plt.close()
 
     print("Minimum value {} in Figure {}".format(min(channel_std), title))
@@ -110,11 +122,21 @@ def count_colorgray(samples, threshold=0.75):
     # check std of channel
     channel_std = np.std(samples, axis=-1) # num_samples x height x width
     channel_std = channel_std.reshape((channel_std.shape[0], channel_std.shape[1] * channel_std.shape[2])) # num_samples x (height x width)
-    channel_std = np.amax(channel_std, axis=-1) # num_samples x 1
+    channel_std = np.mean(channel_std, axis=-1) # num_samples x 1
     num_color = np.sum(channel_std >= threshold)
     num_gray = np.sum(channel_std < threshold)
     assert num_color + num_gray == channel_std.shape[0]
     return {"num_color": num_color, "num_gray": num_gray}
+
+def compute_colorgray(samples):
+    # input: numpy array of samples in np.uint8 format
+    # output: value of metrics
+    # check std of channel
+    channel_std = np.std(samples, axis=-1) # num_samples x height x width
+    channel_std = channel_std.reshape((channel_std.shape[0], channel_std.shape[1] * channel_std.shape[2])) # num_samples x (height x width)
+    channel_std = np.mean(channel_std, axis=-1) # num_samples x 1
+    channel_std_group = np.mean(channel_std)
+    return channel_std_group
 
 
 def get_args():
