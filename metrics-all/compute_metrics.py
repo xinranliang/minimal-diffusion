@@ -117,15 +117,15 @@ def main(args):
     else: 
         if args.real_mode == "color":
             if args.date == "none": # full 50k metrics
-                real_path = "./logs/cifar10_color"
+                real_path = f"./logs/{args.dataset}_color"
             else:
-                real_path = os.path.join("./logs", args.date, "cifar10_color")
+                real_path = os.path.join("./logs", args.date, f"{args.dataset}_color")
                 os.makedirs(real_path, exist_ok=True)
         elif args.real_mode == "gray":
             if args.date == "none": # full 50k metrics
-                real_path = "./logs/cifar10_gray"
+                real_path = f"./logs/{args.dataset}_gray"
             else:
-                real_path = os.path.join("./logs", args.date, "cifar10_gray")
+                real_path = os.path.join("./logs", args.date, f"{args.dataset}_gray")
                 os.makedirs(real_path, exist_ok=True)
     
     # construct image folder

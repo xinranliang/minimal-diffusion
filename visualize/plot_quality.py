@@ -304,15 +304,15 @@ def plot_fixtotal():
 def plot_fixcolor(num_color):
     if num_color == 15000:
         xs = np.array([0, 5000, 10000, 15000, 20000, 25000, 30000, 35000], dtype=float) / num_color
-        fid_color = [[9.419, 7.945, 7.05, 6.506, 6.613, 6.228, 5.875, 6.143], [9.615, 7.834, 7.191, 6.66, 6.29, 6.195, 5.93, 5.982]]
+        fid_color = [[11.819, 10.086, 9.365, 8.799, 8.49, 8.386, 8.281, 8.298], [11.878, 10.111, 9.067, 9.126, 8.773, 8.685, 8.279, 8.262]]
         fid_color = np.vstack(fid_color)
-        fid_color_mean, fid_color_err = np.mean(fid_color, axis=0), np.std(fid_color, axis=0) / np.sqrt(2)
-        precision_color = [[0.682, 0.692, 0.687, 0.69, 0.684, 0.668, 0.674, 0.668], [0.661, 0.659, 0.657, 0.654, 0.651, 0.645, 0.649, 0.64]]
+        fid_color_mean, fid_color_err = np.mean(fid_color, axis=0), np.std(fid_color, axis=0)
+        precision_color = [[0.684, 0.69, 0.677, 0.676, 0.668, 0.668, 0.668, 0.663], [0.684, 0.689, 0.685, 0.68, 0.674, 0.667, 0.676, 0.661]]
         precision_color = np.vstack(precision_color)
         precision_color_mean, precision_color_err = np.mean(precision_color, axis=0), np.std(precision_color, axis=0) / np.sqrt(2)
-        recall_color = [[0.53, 0.55, 0.558, 0.566, 0.57, 0.591, 0.586, 0.597], [0.51, 0.53, 0.538, 0.547, 0.557, 0.556, 0.564, 0.573]]
+        recall_color = [[0.54, 0.56, 0.56, 0.571, 0.582, 0.578, 0.574, 0.583], [0.53, 0.554, 0.561, 0.577, 0.579, 0.582, 0.581, 0.58]]
         recall_color = np.vstack(recall_color)
-        recall_color_mean, recall_color_err = np.mean(recall_color, axis=0), np.std(recall_color, axis=0) / np.sqrt(2)
+        recall_color_mean, recall_color_err = np.mean(recall_color, axis=0), np.std(recall_color, axis=0)
 
         plt.figure(figsize=(8, 8/1.6))
         with plt.style.context('ggplot'):
@@ -329,19 +329,19 @@ def plot_fixcolor(num_color):
 
             ax1.set_ylabel("FID", fontsize=10)
             ax2.set_ylabel("Precision and Recall", fontsize=10)
-            ax1.set_yticks(np.linspace(5.5, 10, num=11), np.linspace(5.5, 10, num=11))
+            ax1.set_yticks(np.linspace(8, 12, num=11), np.linspace(8, 12, num=11))
             ax2.set_yticks(np.linspace(0.5, 0.7, num=11), np.linspace(0.5, 0.7, num=11))
-            ax1.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
-            ax2.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+            ax1.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+            ax2.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-            plt.title("Class-conditional color generation quality (N_color = 15k)", fontsize=10)
+            plt.title("Class-conditional color generation quality (N_color = 15k, CIFAR10)", fontsize=10)
 
             lines1, labels1 = ax1.get_legend_handles_labels()
             lines2, labels2 = ax2.get_legend_handles_labels()
             ax2.legend(lines1 + lines2, labels1 + labels2, loc="center")
             
-        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-27/cifar10/figures", "fixcolor_15k.png"), dpi=300, bbox_inches="tight")
-        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-27/cifar10/figures", "fixcolor_15k.pdf"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-04-01/cifar10/figures", "fixcolor_15k.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-04-01/cifar10/figures", "fixcolor_15k.pdf"), dpi=300, bbox_inches="tight")
         plt.close()
     
 
@@ -354,5 +354,5 @@ if __name__ == "__main__":
     elif args.date == "2023-02-06" or args.date == "2023-02-07":
         plot_020607()
     elif args.date == "2023-03-27":
-        plot_fixtotal()
-        # plot_fixcolor(num_color = 15000)
+        # plot_fixtotal()
+        plot_fixcolor(num_color = 15000)

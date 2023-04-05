@@ -189,6 +189,15 @@ def main(args):
             )
     os.makedirs(log_dir, exist_ok=True)
 
+    # threshold
+    args.threshold = {}
+    if args.dataset == "cifar10":
+        args.threshold["norm_val"] = 0.006
+        args.threshold["pixel_val"] = 0.74
+    elif args.dataset == "mix-cifar10-imagenet":
+        args.threshold["norm_val"] = 0.003
+        args.threshold["pixel_val"] = 0.86
+
     if args.guidance:
         if args.local_rank == 0:
             print("Checkpoint: {} \n".format(args.ckpt_name))
@@ -219,13 +228,24 @@ def main(args):
                 sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
                 labels = file_load['arr_1'] # empty if class_cond = False
 
-            colorgray_dict = count_colorgray(sampled_images)
-            colorgray_value = compute_colorgray(sampled_images)
+            # overall
+            colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
+            colorgray_value = compute_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
+            # class-wise
+            if args.class_cond:
+                colorgray_dict_class = count_colorgray(sampled_images, args.threshold["pixel_val"], labels)
+                colorgray_value_class = compute_colorgray(sampled_images, labels)
+
             if args.local_rank == 0:
                 print("Sample with guidance {} \n".format(w))
                 print("Number of color: {} \n".format(colorgray_dict["num_color"]))
                 print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
                 print("Mean value of channel std: {} \n".format(colorgray_value))
+
+                print("Sample with guidance {} \n".format(w))
+                print("Percentage of color by class: {} \n".format(colorgray_dict_class["ratio_color_classwise"]))
+                print("Percentage of gray by class: {} \n".format(colorgray_dict_class["ratio_gray_classwise"]))
+                print("Mean value of channel std by class: {} \n".format(colorgray_value_class))
             
             if args.sampling_only:
                 if "ema" in args.ckpt_name:
@@ -289,7 +309,7 @@ def main(args):
                 sampled_images,
                 labels,
             )
-        colorgray_dict = count_colorgray(sampled_images)
+        colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
         if args.local_rank == 0:
             print("Number of color: {} \n".format(colorgray_dict["num_color"]))
             print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))

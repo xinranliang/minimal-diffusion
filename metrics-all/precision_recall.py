@@ -197,7 +197,7 @@ def knn_precision_recall_features(real_features,
     state = dict()
     num_images = real_features.shape[0]
     num_features = real_features.shape[1]
-    if row_batch_size == col_batch_size and num_images > row_batch_size and num_images > 2 * row_batch_size: # handle current 15k cases
+    if row_batch_size == col_batch_size and num_images > row_batch_size : # handle current 15k cases
         row_batch_size = num_images
         col_batch_size = num_images
 
