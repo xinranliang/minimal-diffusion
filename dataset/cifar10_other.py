@@ -41,12 +41,10 @@ def recover_imagenet():
                     source_image.save(target_file)
                     # copyfile(source_file, target_file)
 
-def generate_fix_cifar10_other_index(fix_num, other_num, other_dataset):
+def generate_fix_cifar10_other_index(fix_num, other_num, other_dataset, date):
     # base domain dataset - CIFAR10 color
     if fix_num < 50000:
-        fix_index_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10", "color_gray_split", "color{}_gray0_index.pkl".format(fix_num))
-        with open(fix_index_path, "rb") as f:
-            fix_index = pickle.load(f)["color_index"]
+        fix_index = np.random.choice(50000, size=fix_num, replace=False)
     elif fix_num == 50000:
         fix_index = range(50000)
     assert len(fix_index) == fix_num
@@ -84,12 +82,20 @@ def generate_fix_cifar10_other_index(fix_num, other_num, other_dataset):
 
         # save
         with open(
-            os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", "cifarcolor{}_imagenetcolor{}_index.pkl".format(fix_num, other_num)), "wb"
+            os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "cifar{}_imagenet{}_index.pkl".format(fix_num, other_num)), "wb"
         ) as f:
             pickle.dump(img_paths, f)
 
     else:
         raise NotImplementedError
+
+
+def generate_cifar10_imagenet_index(date):
+    generate_fix_cifar10_other_index(25000, 0, "imagenet", date)
+
+    other_num = [0, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000]
+    for number in other_num:
+        generate_fix_cifar10_other_index(50000, number, "imagenet", date)
 
 
 CLASSES = (
@@ -116,6 +122,7 @@ class CIFAR10_Other(Dataset):
         fix_num, # base dataset size
         other_num, # other dataset size
         other_name, # name of other dataset
+        date, # date of experiment to handle multiple runs
     ):
         super().__init__()
 
@@ -170,8 +177,10 @@ class CIFAR10_Other(Dataset):
                 target_transform=target_transform
             )
             # load index file
-            with open(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", "cifarcolor{}_imagenetcolor{}_index.pkl".format(fix_num, other_num)), "rb") as f:
+            file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "cifar{}_imagenet{}_index.pkl".format(fix_num, other_num))
+            with open(file_path, "rb") as f:
                 self.full_dataset.samples = pickle.load(f)
+            print("Loading cifar10/imagenet index split from file path {}".format(file_path))
 
         else:
             raise NotImplementedError
@@ -198,24 +207,5 @@ if __name__ == "__main__":
     # recover_imagenet()
     # generate index
     # imagenet
-
-    # number of cifar10 + imagenet samples
-    full_dataset = datasets.ImageFolder(
-                        root = "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
-                        transform=transforms.Compose([transforms.ToTensor(),]),
-                        target_transform=None
-                    )
-    print(len(full_dataset))
-    
-    """for other_num in [5e3, 1e4, 1.5e4, 2e4, 2.5e4, 3e4, 3.5e4, 4e4, 4.5e4, 5e4, 6e4, 7e4, 8e4, 9e4, 1e5, 1.5e5, 2e5]:
-        generate_fix_cifar10_other_index(fix_num=50000, other_num=int(other_num), other_dataset="imagenet")
-
-        myfull = CIFAR10_Other(
-            root = "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
-            train=True,
-            transform=transforms.Compose([transforms.ToTensor(),]),
-            target_transform=None,
-            fix_num=50000,
-            other_num=int(other_num),
-            other_name="imagenet"
-        )"""
+    generate_cifar10_imagenet_index(date="2023-04-06")
+    generate_cifar10_imagenet_index(date="2023-04-07")

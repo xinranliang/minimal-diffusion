@@ -75,6 +75,28 @@ def split_fixcolor(date):
             split=True
         )
 
+def split_random_baseline(date):
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    num_train = [25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000, 225000, 250000]
+    os.makedirs(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date), exist_ok=True)
+
+    for number in num_train:
+        mydata = Mix_CIFAR10ImageNet(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+            transform=transform_train,
+            target_transform=None,
+            fix="none",
+            color_num=number,
+            gray_num=0,
+            date=date,
+            split=True
+        )
+
 
 class Mix_CIFAR10ImageNet(datasets.ImageFolder):
     def __init__(
@@ -82,19 +104,20 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
         root, # dataset root folder
         transform, # data augmentation
         target_transform, # default None
-        fix, # ["color", "gray"] default fix color and add gray
+        fix, # ["color", "gray", "none"] default fix color and add gray
         color_num, # base dataset size
         gray_num, # other dataset size
         date, # date of experiments to handle multiple runs
         split=False # whether to split index or directly load
     ):
         super().__init__(root=root, transform=transform, target_transform=target_transform)
+        self.fix = fix
 
         # load color-gray split index
         self.color_num = color_num
         self.gray_num = gray_num
 
-        if split:
+        if split and (fix == "color" or fix == "gray"):
             if self.gray_num > 0:
                 # stick to original already splitted index
                 with open(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray0_index.pkl".format(color_num)), "rb") as f:
@@ -119,22 +142,42 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
             with open(file_path, "wb") as f:
                 pickle.dump(idx_dict, f)
 
+        elif split and fix == "none":
+            # handle random baseline case
+            self.train_index = np.random.choice(len(self.samples), size=self.color_num, replace=False)
+            idx_dict = {"train_index": self.train_index}
+
+            file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "baseline_train{}_index.pkl".format(color_num))
+            with open(file_path, "wb") as f:
+                pickle.dump(idx_dict, f)
+        
         else:
-            file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray{}_index.pkl".format(color_num, gray_num))
-            with open(file_path, "rb") as f:
-                file_load = pickle.load(f)
-            print("Loading color/gray index from file path {}".format(file_path))
-            self.color_index = file_load["color_index"]
-            self.gray_index = file_load["gray_index"]
+            if fix == "color" or fix == "gray":
+                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray{}_index.pkl".format(color_num, gray_num))
+                with open(file_path, "rb") as f:
+                    file_load = pickle.load(f)
+                print("Loading color/gray index from file path {}".format(file_path))
+                self.color_index = file_load["color_index"]
+                self.gray_index = file_load["gray_index"]
 
-            assert len(self.color_index) == self.color_num
-            assert len(self.gray_index) == self.gray_num
+                assert len(self.color_index) == self.color_num
+                assert len(self.gray_index) == self.gray_num
 
-            # random shuffle all color and gray index
-            # both are numpy array (color_number, ) (gray_number, )
-            self.image_index = np.concatenate((self.color_index, self.gray_index), axis=0).astype(int)
-            random.shuffle(self.image_index)
-            assert len(self.image_index) == self.color_num + self.gray_num
+                # random shuffle all color and gray index
+                # both are numpy array (color_number, ) (gray_number, )
+                self.image_index = np.concatenate((self.color_index, self.gray_index), axis=0).astype(int)
+                random.shuffle(self.image_index)
+                assert len(self.image_index) == self.color_num + self.gray_num
+            
+            elif fix == "none":
+                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "baseline_train{}_index.pkl".format(color_num))
+                with open(file_path, "rb") as f:
+                    file_load = pickle.load(f)
+                print("Loading training samples index from file path {}".format(file_path))
+                self.image_index = file_load["train_index"]
+
+                assert len(self.image_index) == self.color_num
+                random.shuffle(self.image_index)
         
     
     def __len__(self):
@@ -151,26 +194,35 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
         img_idx = self.image_index[index]
         img, target = super().__getitem__(img_idx) # in tensor
 
-         # decide color or grayscale
-        if img_idx in self.gray_index:
-            assert img_idx not in self.color_index
-            # get image
-            path, _ = self.samples[img_idx]
-            sample = self.loader(path)
-            # color -> gray
-            img = sample.convert("L")
-            # transform
-            if self.transform is not None:
-                img = self.transform(img)
-            img = img.expand(3, -1, -1)
-            # assert torch.equal(img[0], img[1])
-            # assert torch.equal(img[1], img[2])
+        if self.fix == "color" or self.fix == "gray":
+            # decide color or grayscale
+            if img_idx in self.gray_index:
+                assert img_idx not in self.color_index
+                # get image
+                path, _ = self.samples[img_idx]
+                sample = self.loader(path)
+                # color -> gray
+                img = sample.convert("L")
+                # transform
+                if self.transform is not None:
+                    img = self.transform(img)
+                img = img.expand(3, -1, -1)
+                # assert torch.equal(img[0], img[1])
+                # assert torch.equal(img[1], img[2])
+                return img, target
+            else:
+                assert img_idx in self.color_index
+                return img, target
+        
+        elif self.fix == "none":
             return img, target
+        
         else:
-            assert img_idx in self.color_index
-            return img, target
+            raise NotImplementedError
 
 
 
 if __name__ == "__main__":
-    split_fixcolor(date="2023-04-03")
+    # split_fixcolor(date="2023-04-03")
+    split_random_baseline(date="2023-04-06")
+    split_random_baseline(date="2023-04-07")

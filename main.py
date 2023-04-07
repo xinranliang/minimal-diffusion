@@ -66,9 +66,16 @@ def get_args():
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--data-dir", type=str, default="./dataset/")
 
-    parser.add_argument("--fix", type=str, choices=["total", "color", "gray"], default="total", help="specify how to split training distribution")
-    parser.add_argument("--color", help="ratio or number of training distribution to be turned into colored images")
-    parser.add_argument("--grayscale", help="ratio or number of training distribution to be turned into grayscale images")
+    parser.add_argument("--fix", type=str, choices=["total", "color", "gray", "none"], default="total", help="specify how to split training distribution")
+
+    # color-gray domain
+    parser.add_argument("--color", required=False, help="ratio or number of training distribution to be turned into colored images")
+    parser.add_argument("--grayscale", required=False, help="ratio or number of training distribution to be turned into grayscale images")
+
+    # cifar10-imagenet domain
+    parser.add_argument("--num-cifar10", required=False, help="number of cifar10 images used for training")
+    parser.add_argument("--num-imagenet", required=False, help="number of imagenet images used for training")
+    parser.add_argument("--num-baseline", required=False, help="number of baseline images used for training, mixed from cifar10 and imagenet")
 
     # optimizer
     parser.add_argument(
@@ -125,7 +132,11 @@ def main(args):
     # logger
     args.save_dir = os.path.join(args.save_dir, args.date, args.dataset)
 
-    metadata = get_metadata(args.dataset, args.date, args.fix, args.color, args.grayscale)
+    metadata = get_metadata(
+        name=args.dataset, date=args.date,
+        fix=args.fix, color=args.color, grayscale=args.grayscale,
+        fix_name="cifar10", other_name="imagenet", fix_num=args.num_cifar10, other_num=args.num_imagenet, num_train_baseline=args.num_baseline
+    )
 
     # distribute data parallel
     torch.backends.cudnn.benchmark = True
@@ -180,13 +191,32 @@ def main(args):
         model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
     
     # logging
-    log_dir = os.path.join(
-            args.save_dir, 
-            "color{}_gray{}".format(args.color, args.grayscale),
-            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
-                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
-            )
-            )
+    if args.fix == "total" or args.fix == "color" or args.fix == "gray":
+        log_dir = os.path.join(
+                args.save_dir, 
+                "color{}_gray{}".format(args.color, args.grayscale),
+                "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                    args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                )
+                )
+    elif args.fix == "none" and args.dataset == "cifar10-imagenet":
+        log_dir = os.path.join(
+                args.save_dir, 
+                "cifar{}_imagenet{}".format(args.num_cifar10, args.num_imagenet),
+                "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                    args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                )
+                )
+    elif args.fix == "none" and args.dataset == "mix-cifar10-imagenet":
+        log_dir = os.path.join(
+                args.save_dir, 
+                "baseline_num{}".format(args.num_baseline),
+                "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                    args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                )
+                )
+    else:
+        raise NotImplementedError
     os.makedirs(log_dir, exist_ok=True)
 
     # threshold
@@ -410,23 +440,9 @@ def main(args):
         len(train_loader) * args.epochs, ["tb", "csv", "txt"], log_dir, args.ema_w
     )
 
-    model_dir = os.path.join(
-        args.save_dir, 
-        "color{}_gray{}".format(args.color, args.grayscale),
-        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
-                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
-        ),
-        "ckpt"
-        )
+    model_dir = os.path.join(log_dir, "ckpt")
     os.makedirs(model_dir, exist_ok=True)
-    sample_dir = os.path.join(
-        args.save_dir, 
-        "color{}_gray{}".format(args.color, args.grayscale),
-        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
-                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
-        ),
-        "samples"
-        )
+    sample_dir = os.path.join(log_dir, "samples")
     os.makedirs(sample_dir, exist_ok=True)
 
     # ema model

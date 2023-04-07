@@ -10,12 +10,14 @@ from torchvision import datasets, transforms
 from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup
 from dataset.celeba import CelebA_Custom
 from dataset.mix_cifar10_imagenet import Mix_CIFAR10ImageNet
+from dataset.cifar10_other import CIFAR10_Other
 
 
 def get_metadata(
     name, date,
     fix=None, color=None, grayscale=None, # this is for CIFAR10 2 domains
-    other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
+    fix_name="cifar10", other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
+    num_train_baseline=None # this is for combine 2 dataset source as 1 domain - baseline for above setting
 ):
     if name == "cifar10":
         if fix == "total":
@@ -51,18 +53,20 @@ def get_metadata(
                     "date": date
                 }
             )
-    elif name == "cifar10-other":
+    elif name == "cifar10-imagenet":
         metadata = EasyDict(
             {
                 "image_size": 32,
                 "num_classes": 10,
-                "train_images": fix_num + other_num,
+                "train_images": int(fix_num) + int(other_num),
                 "val_images": 10000,
+                "num_cifar10": int(fix_num),
+                "num_imagenet": int(other_num),
                 "num_channels": 3,
                 "date": date
             }
         )
-    elif name == "mix-cifar10-imagenet":
+    elif name == "mix-cifar10-imagenet" and (fix == "total" or fix == "color" or fix == "gray"):
         metadata = EasyDict(
             {
                 "image_size": 32,
@@ -73,6 +77,21 @@ def get_metadata(
                 "gray_number": int(grayscale),
                 "num_channels": 3,
                 "fix": fix,
+                "split": False,
+                "date": date
+            }
+        )
+    elif name == "mix-cifar10-imagenet" and fix == "none":
+        metadata = EasyDict(
+            {
+                "image_size": 32,
+                "num_classes": 10,
+                "train_images": int(num_train_baseline),
+                "val_images": 10000,
+                "color_number": int(num_train_baseline),
+                "gray_number": 0,
+                "num_channels": 3,
+                "fix": "none",
                 "split": False,
                 "date": date
             }
@@ -166,6 +185,24 @@ def get_dataset(name, data_dir, metadata):
             date=metadata.date,
             split=False
         )
+    elif name == "cifar10-imagenet":
+        transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = CIFAR10_Other(
+            root = os.path.join(data_dir, "cifar10"),
+            train = True,
+            transform=transform_train,
+            target_transform=None,
+            fix_num = metadata.num_cifar10,
+            other_num = metadata.num_imagenet,
+            other_name = "imagenet",
+            date = metadata.date
+        )
+    
     elif name == "celeba":
         # celebA has a large number of images, avoiding randomcropping.
         transform_train = transforms.Compose(

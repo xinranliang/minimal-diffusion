@@ -19,7 +19,7 @@ cd /n/fs/xl-diffbia/projects/minimal-diffusion
 # 15k C
 
 # run 1
-"""python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color \
+python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color \
 --date 2023-03-27 --num-samples 15000 \
 --fake ./logs/2023-03-27/cifar10/color15000_gray0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_4096_dropprob_0.1/samples_ema/cifar10_cond_color15_gray0_ema_num50000_guidance0.0.npz
 
@@ -50,7 +50,7 @@ python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode l
 python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color \
 --date 2023-03-27 --num-samples 15000 \
 --fake ./logs/2023-03-27/cifar10/color0.3_gray0.7/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_10000_dropprob_0.1/samples_ema/cifar10_cond_color0.3_gray0.7_puncond0.1_epoch1k_ema_num50000_color.npz
-"""
+
 # run 2
 python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color \
 --date 2023-04-01 --num-samples 15000 \

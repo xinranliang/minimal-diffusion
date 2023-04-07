@@ -31,12 +31,18 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
     root_dir = os.path.join("./datasets", dataset)
     image_index = None
     if args.date != "none":
-        if mode == "color":
-            with open(os.path.join(root_dir, "color_gray_split", date, "color15000_gray0_index.pkl"), "rb") as f:
-                image_index = pickle.load(f)["color_index"]
-        elif mode == "gray":
-            with open(os.path.join(root_dir, "color_gray_split", date, "color0_gray15000_index.pkl"), "rb") as f:
-                image_index = pickle.load(f)["gray_index"]
+        if dataset == "cifar10":
+            if mode == "color":
+                with open(os.path.join(root_dir, "color_gray_split", date, "color15000_gray0_index.pkl"), "rb") as f:
+                    image_index = pickle.load(f)["color_index"]
+            elif mode == "gray":
+                with open(os.path.join(root_dir, "color_gray_split", date, "color0_gray15000_index.pkl"), "rb") as f:
+                    image_index = pickle.load(f)["gray_index"]
+        
+        elif dataset == "mix-cifar10-imagenet":
+            if mode == "color":
+                with open(os.path.join(root_dir, "index_split", date, "color15000_gray0_index.pkl"), "rb") as f:
+                    image_index = pickle.load(f)["color_index"]
     
     if dataset == "cifar10":
         root_dir = os.path.join(root_dir, "cifar-10-batches-py")
@@ -81,6 +87,33 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
                 img_idx += 1
         
         return save_folder
+    
+    elif dataset == "mix-cifar10-imagenet":
+        if args.date == "none":
+            if mode == "color":
+                save_folder = os.path.join("./logs/mix-cifar10-imagenet_color")
+            elif mode == "gray":
+                save_folder = os.path.join("./logs/mix_cifar10-imagenet_gray")
+        else:
+            if mode == "color":
+                save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_color")
+            elif mode == "gray":
+                save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_gray")
+        os.makedirs(save_folder, exist_ok=True)
+
+        full_data = datasets.ImageFolder(
+            root = "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+            transform = None,
+            target_transform = None
+        )
+        print(image_index)
+        input("press enter to continue")
+
+        if image_index is not None:
+            for img_idx in image_index:
+                image, label = full_data.__getitem__(img_idx)
+                image.save(os.path.join(save_folder, "%s.png" % (img_idx)))
+
 
 
 def array_to_image(path, num_images, folder="./logs/temp"):
