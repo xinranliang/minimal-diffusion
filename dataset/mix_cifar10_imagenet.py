@@ -59,7 +59,7 @@ def split_fixcolor(date):
         )
 
     fixcolor = 15000
-    gray_num = [0, 30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000]
+    gray_num = [0, 7500, 15000, 22500, 30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000]
 
     os.makedirs(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date), exist_ok=True)
 
@@ -223,6 +223,7 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
 
 
 if __name__ == "__main__":
-    # split_fixcolor(date="2023-04-03")
-    split_random_baseline(date="2023-04-06")
-    split_random_baseline(date="2023-04-07")
+    split_fixcolor(date="2023-04-02")
+    split_fixcolor(date="2023-04-03")
+    # split_random_baseline(date="2023-04-06")
+    # split_random_baseline(date="2023-04-07")

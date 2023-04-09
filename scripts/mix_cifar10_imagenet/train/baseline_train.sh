@@ -4,7 +4,7 @@
 #SBATCH --nodes=1             # nodes requested
 #SBATCH --ntasks=1            # tasks requested
 #SBATCH --cpus-per-task=8     # Specify the number of CPUs your task will need.
-#SBATCH --gres=gpu:a6000:2          # the number of GPUs requested
+#SBATCH --gres=gpu:rtx_2080:2          # the number of GPUs requested
 #SBATCH --mem=24G             # memory 
 #SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-04-07/mix_cifar10_imagenet_train_cond_droprob0.1_num250k.txt            # where stdout and stderr will write to
 #SBATCH -t 60:00:00           # time requested in hour:minute:second
