@@ -11,13 +11,15 @@ from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup
 from dataset.celeba import CelebA_Custom
 from dataset.mix_cifar10_imagenet import Mix_CIFAR10ImageNet
 from dataset.cifar10_other import CIFAR10_Other
+from dataset.mnist import MNIST_FLIP
 
 
 def get_metadata(
     name, date,
     fix=None, color=None, grayscale=None, # this is for CIFAR10 2 domains
     fix_name="cifar10", other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
-    num_train_baseline=None # this is for combine 2 dataset source as 1 domain - baseline for above setting
+    num_train_baseline=None, # this is for combine 2 dataset source as 1 domain - baseline for above setting
+    flip_left=None, flip_right=None, # this is for testing mnist dataset
 ):
     if name == "cifar10":
         if fix == "total":
@@ -94,6 +96,20 @@ def get_metadata(
                 "fix": "none",
                 "split": False,
                 "date": date
+            }
+        )
+    elif name == "mnist":
+        metadata = EasyDict(
+            {
+                "image_size": 28,
+                "num_classes": 10,
+                "train_images": 60000,
+                "val_images": 10000,
+                "num_channels": 1,
+                "date": date,
+                "flip_left": flip_left,
+                "flip_right": flip_right,
+                "split": False
             }
         )
     elif name == "celeba":
@@ -201,6 +217,37 @@ def get_dataset(name, data_dir, metadata):
             other_num = metadata.num_imagenet,
             other_name = "imagenet",
             date = metadata.date
+        )
+    
+    elif name == "mnist":
+        transform_left = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        transform_right = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(p=1.0),
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = MNIST_FLIP(
+            root = os.path.join(data_dir, "mnist"),
+            train = True,
+            transform_left = transform_left,
+            transform_right = transform_right,
+            target_transform = None,
+            download = True,
+            date = metadata.date,
+            split = False,
+            ratio_left = metadata.flip_left,
+            ratio_right = metadata.flip_right,
         )
     
     elif name == "celeba":
