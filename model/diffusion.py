@@ -273,6 +273,47 @@ def sample_N_images(
     return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
+def sample_N_images_nodist(
+    N,
+    model,
+    diffusion,
+    xT=None,
+    sampling_steps=250,
+    batch_size=64,
+    num_channels=3,
+    image_size=32,
+    num_classes=None,
+    args=None,
+):
+    samples, labels, num_samples = [], [], 0
+    with tqdm(total=math.ceil(N / args.batch_size)) as pbar:
+        while num_samples < N:
+            if xT is None:
+                xT = (
+                    torch.randn(batch_size, num_channels, image_size, image_size)
+                    .float()
+                    .to(args.device)
+                )
+            if args.class_cond:
+                y = torch.randint(num_classes, (len(xT),), dtype=torch.int64).to(
+                    args.device
+                )
+            else:
+                y = None
+            gen_images = diffusion.sample_from_reverse_process(
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
+            )
+            if args.class_cond:
+                labels.append(y.detach().cpu().numpy())
+
+            samples.append(gen_images.detach().cpu().numpy())
+            num_samples += len(xT)
+            pbar.update(1)
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
+    samples = (127.5 * (samples + 1)).astype(np.uint8)
+    return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
+
+
 def sample_color_images(
     N,
     model,

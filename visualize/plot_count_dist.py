@@ -73,14 +73,14 @@ def plot_guidance_classwise(count_dict, group_count, ref_ratio, num_classes=10, 
 
     plt.figure(figsize=(8, 8/1.6))
     with plt.style.context('ggplot'):
-        # overall mean
-        plt.errorbar(ws, group_count_mean, yerr=group_count_err, linestyle="dotted", linewidth=4, color="black", capsize=3, label="% in all synthetic samples")
         # each class
         for idx in range(num_classes):
             class_stats_mean, class_stats_std = class_stats[idx]
-            plt.errorbar(ws, class_stats_mean, yerr=class_stats_std, linestyle="-", linewidth=2, capsize=3, color=color_list[idx], label=CLASSES[idx])
+            plt.errorbar(ws, class_stats_mean, yerr=class_stats_std, linestyle="-", linewidth=2, capsize=3, alpha=0.5, color=color_list[idx], label=CLASSES[idx])
+        # overall mean
+        plt.errorbar(ws, group_count_mean, yerr=group_count_err, linestyle="-", linewidth=2, color="black", capsize=3, label="% in synthetic")
         # reference in training distribution
-        plt.axhline(ref_ratio, xmin=ws[0], xmax=ws[-1], linestyle="--", color="violet", label="% in real training samples")
+        plt.axhline(ref_ratio, xmin=ws[0], xmax=ws[-1], linestyle="--", color="violet", label="% in real")
 
         plt.xticks(ws, ws)
         plt.ylim(ref_ratio - 0.2, min(ref_ratio + 0.51, 1.01))
@@ -143,21 +143,36 @@ def call_guidance_dist_classwise():
     plot_guidance_classwise(classwise_dist, color, 0.7)
 
 def call_guidance_dist():
+    # 95C-5G
+    color = [[47686, 47898, 48198, 48400, 48506, 48697, 49191, 49472, 49643], [47333, 47624, 47947, 48137, 48297, 48423, 49046, 49335, 49572]]
+    plot_guidance_dist(color, 0.95)
+
+    # 90C-10G
+    color = [[44009, 44496, 45032, 45538, 45794, 46133, 47243, 47982, 48461], [44183, 44713, 45270, 45793, 45943, 46450, 47499, 48229, 48527]]
+    # plot_guidance_dist(color, 0.9)
+
     # 70C-30G
     color = [[32848, 33675, 34398, 35533, 36221, 36985, 39938, 42068, 43742], [32845, 33559, 34488, 35525, 36062, 36905, 39556, 41541, 42931]]
     value_70 = [[9.61, 9.93, 10.36, 10.83, 11.17, 11.65, 13.51, 15.06, 16.70], [9.58, 9.87, 10.30, 10.76, 11.10, 11.53, 13.20, 14.52, 15.80]]
-    plot_guidance_dist(color, 0.7)
+    # plot_guidance_dist(color, 0.7)
 
     # 50C-50G
     color = [[22076, 22636, 23582, 24674, 25462, 26271, 29939, 33002, 35650], [22535, 23023, 23775, 24658, 25395, 26157, 29422, 32394, 34909]]
     value_50 = [[6.67, 6.90, 7.27, 7.64, 7.97, 8.38, 10.07, 11.52, 13.01], [6.56, 6.78, 7.17, 7.55, 7.86, 8.25, 9.93, 11.35, 12.88]]
-    plot_guidance_dist(color, 0.5)
+    # plot_guidance_dist(color, 0.5)
 
     # 30C-70G
     color = [[12002, 12399, 13225, 13867, 14553, 15075, 18263, 20895, 23620], [12004, 12442, 12942, 13693, 14082, 14618, 17131, 19095, 21139]]
     value_30 = [[3.67, 3.82, 4.09, 4.32, 4.51, 4.78, 5.94, 6.91, 8.09], [3.58, 3.73, 3.96, 4.19, 4.31, 4.56, 5.50, 6.24, 7.11]]
-    plot_guidance_dist(color, 0.3)
-    # plot_guidance_value(value_70, value_50, value_30)
+    # plot_guidance_dist(color, 0.3)
+
+    # 10C-90G
+    color = [[3292, 3406, 3731, 3869, 4099, 4364, 5572, 6640, 8276], [3304, 3391, 3738, 3841, 3996, 4262, 5400, 6293, 7539]]
+    # plot_guidance_dist(color, 0.1)
+
+    # 5C-95G
+    color = [[1255, 1295, 1451, 1522, 1547, 1655, 2156, 2605, 3367], [1310, 1295, 1431, 1456, 1480, 1558, 1921, 2225, 2702]]
+    plot_guidance_dist(color, 0.05)
 
 
 

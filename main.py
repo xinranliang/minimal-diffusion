@@ -14,7 +14,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_color_images, sample_gray_images, sample_N_images_cond
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond
 import model.unets as unets
 import utils
 from metrics.color_gray import count_colorgray, compute_colorgray
@@ -66,7 +66,7 @@ def get_args():
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--data-dir", type=str, default="./dataset/")
 
-    parser.add_argument("--fix", type=str, choices=["total", "color", "gray", "none"], default="total", help="specify how to split training distribution")
+    parser.add_argument("--fix", type=str, choices=["total", "color", "gray", "none"], default="none", help="specify how to split training distribution")
 
     # color-gray domain
     parser.add_argument("--color", required=False, help="ratio or number of training distribution to be turned into colored images")
@@ -76,6 +76,10 @@ def get_args():
     parser.add_argument("--num-cifar10", required=False, help="number of cifar10 images used for training")
     parser.add_argument("--num-imagenet", required=False, help="number of imagenet images used for training")
     parser.add_argument("--num-baseline", required=False, help="number of baseline images used for training, mixed from cifar10 and imagenet")
+
+    # mnist flip left-right domain
+    parser.add_argument("--flip-left", type=float, required=False, help="ratio of mnist images flipped to left")
+    parser.add_argument("--flip-right", type=float, required=False, help="ratio of mnist images flipped to right")
 
     # optimizer
     parser.add_argument(
@@ -135,7 +139,8 @@ def main(args):
     metadata = get_metadata(
         name=args.dataset, date=args.date,
         fix=args.fix, color=args.color, grayscale=args.grayscale,
-        fix_name="cifar10", other_name="imagenet", fix_num=args.num_cifar10, other_num=args.num_imagenet, num_train_baseline=args.num_baseline
+        fix_name="cifar10", other_name="imagenet", fix_num=args.num_cifar10, other_num=args.num_imagenet, num_train_baseline=args.num_baseline,
+        flip_left=args.flip_left, flip_right=args.flip_right
     )
 
     # distribute data parallel
@@ -191,32 +196,42 @@ def main(args):
         model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
     
     # logging
-    if args.fix == "total" or args.fix == "color" or args.fix == "gray":
+    if "cifar10" in args.dataset:
+        if args.fix == "total" or args.fix == "color" or args.fix == "gray":
+            log_dir = os.path.join(
+                    args.save_dir, 
+                    "color{}_gray{}".format(args.color, args.grayscale),
+                    "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                        args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                    )
+                    )
+        elif args.fix == "none" and args.dataset == "cifar10-imagenet":
+            log_dir = os.path.join(
+                    args.save_dir, 
+                    "cifar{}_imagenet{}".format(args.num_cifar10, args.num_imagenet),
+                    "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                        args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                    )
+                    )
+        elif args.fix == "none" and args.dataset == "mix-cifar10-imagenet":
+            log_dir = os.path.join(
+                    args.save_dir, 
+                    "baseline_num{}".format(args.num_baseline),
+                    "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                        args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                    )
+                    )
+        else:
+            raise NotImplementedError
+    
+    elif "mnist" in args.dataset:
         log_dir = os.path.join(
                 args.save_dir, 
-                "color{}_gray{}".format(args.color, args.grayscale),
+                "left{}_right{}".format(args.flip_left, args.flip_right),
                 "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
                     args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                        )
                 )
-                )
-    elif args.fix == "none" and args.dataset == "cifar10-imagenet":
-        log_dir = os.path.join(
-                args.save_dir, 
-                "cifar{}_imagenet{}".format(args.num_cifar10, args.num_imagenet),
-                "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
-                    args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
-                )
-                )
-    elif args.fix == "none" and args.dataset == "mix-cifar10-imagenet":
-        log_dir = os.path.join(
-                args.save_dir, 
-                "baseline_num{}".format(args.num_baseline),
-                "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
-                    args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
-                )
-                )
-    else:
-        raise NotImplementedError
     os.makedirs(log_dir, exist_ok=True)
 
     # threshold
@@ -456,18 +471,32 @@ def main(args):
 
         # sample during training
         if epoch > 0 and epoch % args.ckpt_sample_freq == 0:
-            sampled_images, _ = sample_N_images(
-                    64,
-                    model,
-                    diffusion,
-                    None,
-                    args.sampling_steps,
-                    args.batch_size,
-                    metadata.num_channels,
-                    metadata.image_size,
-                    metadata.num_classes if args.class_cond else None,
-                    args,
-                )
+            if ngpus > 1:
+                sampled_images, _ = sample_N_images(
+                        64,
+                        model,
+                        diffusion,
+                        None,
+                        args.sampling_steps,
+                        args.batch_size,
+                        metadata.num_channels,
+                        metadata.image_size,
+                        metadata.num_classes if args.class_cond else None,
+                        args,
+                    )
+            else:
+                sampled_images, _ = sample_N_images_nodist(
+                        64,
+                        model,
+                        diffusion,
+                        None,
+                        args.sampling_steps,
+                        args.batch_size,
+                        metadata.num_channels,
+                        metadata.image_size,
+                        metadata.num_classes if args.class_cond else None,
+                        args,
+                    )
             if args.local_rank == 0:
                 cv2.imwrite(
                     os.path.join(
@@ -493,18 +522,32 @@ def main(args):
                 ),
             )
     
-    sampled_images, _ = sample_N_images(
-        64,
-        model,
-        diffusion,
-        None,
-        args.sampling_steps,
-        args.batch_size,
-        metadata.num_channels,
-        metadata.image_size,
-        metadata.num_classes if args.class_cond else None,
-        args,
-    )
+    if ngpus > 1:
+        sampled_images, _ = sample_N_images(
+            64,
+            model,
+            diffusion,
+            None,
+            args.sampling_steps,
+            args.batch_size,
+            metadata.num_channels,
+            metadata.image_size,
+            metadata.num_classes if args.class_cond else None,
+            args,
+        )
+    else:
+        sampled_images, _ = sample_N_images_nodist(
+            64,
+            model,
+            diffusion,
+            None,
+            args.sampling_steps,
+            args.batch_size,
+            metadata.num_channels,
+            metadata.image_size,
+            metadata.num_classes if args.class_cond else None,
+            args,
+        )
     if args.local_rank == 0:
         cv2.imwrite(
             os.path.join(

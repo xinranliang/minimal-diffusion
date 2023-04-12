@@ -156,15 +156,15 @@ class MNIST_FLIP(datasets.MNIST):
 
         if target in flip_classes:
             if index in self.index_left[target]:
-                print(f"Left index {index} of class {target}, no flipping")
+                # print(f"Left index {index} of class {target}, no flipping")
                 image = self.transform_left(image)
             elif index in self.index_right[target]:
-                print(f"Right index {index} of class {target}, flipping")
+                # print(f"Right index {index} of class {target}, flipping")
                 image = self.transform_right(image)
             else:
                 raise ValueError("an index should either in left or right flip")
         else:
-            print(f"symmetric class of {target} at index {index}")
+            # print(f"symmetric class of {target} at index {index}")
             image = self.transform_left(image)
         
         return image, target
