@@ -14,7 +14,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_mnist
 import model.unets as unets
 import utils
 from metrics.color_gray import count_colorgray, compute_colorgray
@@ -251,46 +251,71 @@ def main(args):
         for w in guidance_w:
             args.classifier_free_w = w 
 
-            if args.sampling_only:
-                # sample first time
-                sampled_images, labels = sample_N_images(
-                    args.num_sampled_images,
-                    model,
-                    diffusion,
-                    None,
-                    args.sampling_steps,
-                    args.batch_size,
-                    metadata.num_channels,
-                    metadata.image_size,
-                    metadata.num_classes,
-                    args,
-                )
-            else:
-                # otherwise load previous samples
-                file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
-                file_load = np.load(file_path, allow_pickle=True)
+            # color/gray domain datasets: cifar10 or mix-cifar10-imagenet or cifar10-imagenet
+            if "cifar10" in args.dataset:
+                if args.sampling_only:
+                    # sample first time
+                    sampled_images, labels = sample_N_images(
+                        args.num_sampled_images,
+                        model,
+                        diffusion,
+                        None,
+                        args.sampling_steps,
+                        args.batch_size,
+                        metadata.num_channels,
+                        metadata.image_size,
+                        metadata.num_classes,
+                        args,
+                    )
+                else:
+                    # otherwise load previous samples
+                    file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                    file_load = np.load(file_path, allow_pickle=True)
 
-                sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
-                labels = file_load['arr_1'] # empty if class_cond = False
+                    sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                    labels = file_load['arr_1'] # empty if class_cond = False
 
-            # overall
-            colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
-            colorgray_value = compute_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
-            # class-wise
-            if args.class_cond:
-                colorgray_dict_class = count_colorgray(sampled_images, args.threshold["pixel_val"], labels)
-                colorgray_value_class = compute_colorgray(sampled_images, labels)
+                # overall
+                colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
+                colorgray_value = compute_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
+                # class-wise
+                if args.class_cond:
+                    colorgray_dict_class = count_colorgray(sampled_images, args.threshold["pixel_val"], labels)
+                    colorgray_value_class = compute_colorgray(sampled_images, labels)
 
-            if args.local_rank == 0:
-                print("Sample with guidance {} \n".format(w))
-                print("Number of color: {} \n".format(colorgray_dict["num_color"]))
-                print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
-                print("Mean value of channel std: {} \n".format(colorgray_value))
+                if args.local_rank == 0:
+                    print("Sample with guidance {} \n".format(w))
+                    print("Number of color: {} \n".format(colorgray_dict["num_color"]))
+                    print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
+                    print("Mean value of channel std: {} \n".format(colorgray_value))
 
-                print("Sample with guidance {} \n".format(w))
-                print("Percentage of color by class: {} \n".format(colorgray_dict_class["ratio_color_classwise"]))
-                print("Percentage of gray by class: {} \n".format(colorgray_dict_class["ratio_gray_classwise"]))
-                print("Mean value of channel std by class: {} \n".format(colorgray_value_class))
+                    print("Sample with guidance {} \n".format(w))
+                    print("Percentage of color by class: {} \n".format(colorgray_dict_class["ratio_color_classwise"]))
+                    print("Percentage of gray by class: {} \n".format(colorgray_dict_class["ratio_gray_classwise"]))
+                    print("Mean value of channel std by class: {} \n".format(colorgray_value_class))
+            
+            # left/right horizontal flip domain dataset: mnist
+            elif "mnist" in args.dataset:
+                if args.sampling_only:
+                    # sample first time
+                    sampled_images, labels = sample_N_images_mnist(
+                        args.num_sampled_images,
+                        model,
+                        diffusion,
+                        None,
+                        args.sampling_steps,
+                        args.batch_size,
+                        metadata.num_channels,
+                        metadata.image_size,
+                        args,
+                    )
+                else:
+                    # otherwise load previous samples
+                    file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                    file_load = np.load(file_path, allow_pickle=True)
+
+                    sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                    labels = file_load['arr_1'] # empty if class_cond = False
             
             if args.sampling_only:
                 if "ema" in args.ckpt_name:

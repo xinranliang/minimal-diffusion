@@ -29,6 +29,7 @@ class Domain_CifarImageNet(datasets.ImageFolder):
     def __init__(
         self,
         root, 
+        mode, # train or test
         transform,
         target_transform
     ):

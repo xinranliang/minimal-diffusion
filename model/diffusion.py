@@ -488,3 +488,64 @@ def sample_N_images_cond(
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
     samples = (127.5 * (samples + 1)).astype(np.uint8)
     return (samples, np.concatenate(labels)[:N])
+
+
+def sample_N_images_mnist(
+    N,
+    model,
+    diffusion,
+    xT=None,
+    sampling_steps=250,
+    batch_size=64,
+    num_channels=1,
+    image_size=28,
+    args=None,
+):
+    """use this function to sample any number of images from a given
+        diffusion model and diffusion process.
+
+    Args:
+        N : Number of images = num_flip_classes * num_images_per_class
+        model : Diffusion model
+        diffusion : Diffusion process
+        xT : Starting instantiation of noise vector.
+        sampling_steps : Number of sampling steps.
+        batch_size : Batch-size for sampling = num_images_per_class
+        num_channels : Number of channels in the image.
+        image_size : Image size (assuming square images).
+        num_classes : Number of classes in the dataset, assume class-conditional model
+        args : All args from the argparser.
+
+    Returns: Numpy array (num_classes x n x image_size) with images and corresponding labels.
+    """
+    flip_classes = (
+        2, 3, 4, 5, 6, 7, 9
+    )
+    assert args.class_cond
+    assert N == len(flip_classes) * args.batch_size
+
+    samples, labels, num_samples = [], [], 0
+    with tqdm(total=len(flip_classes)) as pbar:
+        for class_label in flip_classes:
+            # initialize noise
+            if xT is None:
+                xT = (
+                        torch.randn(batch_size, num_channels, image_size, image_size)
+                        .float()
+                        .to(args.device)
+                    )
+                # specify class label
+            y = torch.zeros(size=(len(xT),), dtype=torch.int64).to(args.device)
+            y.fill_(class_label)
+
+            gen_images = diffusion.sample_from_reverse_process(
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
+            )
+            labels.append(y.detach().cpu().numpy())
+            samples.append(gen_images.detach().cpu().numpy())
+            num_samples += len(xT)
+            pbar.update(1)
+            
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
+    samples = (127.5 * (samples + 1)).astype(np.uint8)
+    return (samples, np.concatenate(labels)[:N])
