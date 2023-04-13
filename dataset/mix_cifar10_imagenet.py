@@ -75,6 +75,31 @@ def split_fixcolor(date):
             split=True
         )
 
+def split_fixgray(date):
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+
+    fixgray = 15000
+    color_num = [0, 7500, 15000, 22500, 30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000]
+
+    os.makedirs(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date), exist_ok=True)
+
+    for number in color_num:
+        mydata = Mix_CIFAR10ImageNet(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+            transform=transform_train,
+            target_transform=None,
+            fix="gray",
+            color_num=number,
+            gray_num=fixgray,
+            date=date,
+            split=True
+        )
+
 def split_random_baseline(date):
     transform_train = transforms.Compose(
             [
@@ -118,29 +143,58 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
         self.gray_num = gray_num
 
         if split and (fix == "color" or fix == "gray"):
-            if self.gray_num > 0:
-                # stick to original already splitted index
-                with open(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray0_index.pkl".format(color_num)), "rb") as f:
-                    file_load = pickle.load(f)
-                self.color_index = file_load["color_index"]
-                # random sample w/o replacement from remaining indices
-                self.gray_index = [no_idx for no_idx in range(len(self.samples)) if no_idx not in self.color_index]
-                self.gray_index = np.array(self.gray_index, dtype=int)
-                assert self.gray_num <= len(self.gray_index)
-                self.gray_index = np.random.choice(self.gray_index, size=self.gray_num, replace=False)
+            if fix == "color":
+                if self.gray_num > 0:
+                    # stick to original already splitted index
+                    with open(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray0_index.pkl".format(color_num)), "rb") as f:
+                        file_load = pickle.load(f)
+                    self.color_index = file_load["color_index"]
+                    # random sample w/o replacement from remaining indices
+                    self.gray_index = [no_idx for no_idx in range(len(self.samples)) if no_idx not in self.color_index]
+                    self.gray_index = np.array(self.gray_index, dtype=int)
+                    assert self.gray_num <= len(self.gray_index)
+                    self.gray_index = np.random.choice(self.gray_index, size=self.gray_num, replace=False)
 
-            elif self.gray_num == 0:
-                self.color_index = np.random.choice(len(self.samples), size=self.color_num, replace=False)
-                self.gray_index = []
-            
-            else:
-                assert self.gray_num >= 0, "Number of samples has to be specified as non-negative value"
-            
-            idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
+                elif self.gray_num == 0:
+                    self.color_index = np.random.choice(len(self.samples), size=self.color_num, replace=False)
+                    self.gray_index = []
+                
+                else:
+                    assert self.gray_num >= 0, "Number of samples has to be specified as non-negative value"
+                
+                idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
 
-            file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray{}_index.pkl".format(color_num, gray_num))
-            with open(file_path, "wb") as f:
-                pickle.dump(idx_dict, f)
+                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray{}_index.pkl".format(color_num, gray_num))
+                with open(file_path, "wb") as f:
+                    pickle.dump(idx_dict, f)
+            
+            elif fix == "gray":
+                if self.color_num > 0:
+                    # stick to original already splitted index
+                    with open(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "gray{}_color0_index.pkl".format(gray_num)), "rb") as f:
+                        file_load = pickle.load(f)
+                    self.gray_index = file_load["gray_index"]
+                    # random sample w/o replacement from remaining indices
+                    self.color_index = [no_idx for no_idx in range(len(self.samples)) if no_idx not in self.gray_index]
+                    self.color_index = np.array(self.color_index, dtype=int)
+                    assert self.color_num <= len(self.color_index)
+                    self.color_index = np.random.choice(self.color_index, size=self.color_num, replace=False)
+
+                elif self.color_num == 0:
+                    self.gray_index = np.random.choice(len(self.samples), size=self.gray_num, replace=False)
+                    self.color_index = []
+                
+                else:
+                    assert self.color_num >= 0, "Number of samples has to be specified as non-negative value"
+                
+                idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
+
+                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "gray{}_color{}_index.pkl".format(gray_num, color_num))
+                with open(file_path, "wb") as f:
+                    pickle.dump(idx_dict, f)
+            
+            else: 
+                raise NotImplementedError
 
         elif split and fix == "none":
             # handle random baseline case
@@ -153,7 +207,11 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
         
         else:
             if fix == "color" or fix == "gray":
-                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray{}_index.pkl".format(color_num, gray_num))
+                if fix == "color":
+                    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "color{}_gray{}_index.pkl".format(color_num, gray_num))
+                elif fix == "gray":
+                    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "gray{}_color{}_index.pkl".format(gray_num, color_num))
+
                 with open(file_path, "rb") as f:
                     file_load = pickle.load(f)
                 print("Loading color/gray index from file path {}".format(file_path))
@@ -223,7 +281,9 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
 
 
 if __name__ == "__main__":
-    split_fixcolor(date="2023-04-02")
-    split_fixcolor(date="2023-04-03")
+    # split_fixcolor(date="2023-04-02")
+    # split_fixcolor(date="2023-04-03")
+    split_fixgray(date="2023-04-02")
+    split_fixgray(date="2023-04-03")
     # split_random_baseline(date="2023-04-06")
     # split_random_baseline(date="2023-04-07")

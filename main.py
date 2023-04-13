@@ -197,10 +197,18 @@ def main(args):
     
     # logging
     if "cifar10" in args.dataset:
-        if args.fix == "total" or args.fix == "color" or args.fix == "gray":
+        if args.fix == "total" or args.fix == "color":
             log_dir = os.path.join(
                     args.save_dir, 
                     "color{}_gray{}".format(args.color, args.grayscale),
+                    "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                        args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                    )
+                    )
+        elif args.fix == "gray":
+            log_dir = os.path.join(
+                    args.save_dir, 
+                    "gray{}_color{}".format(args.grayscale, args.color),
                     "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
                         args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
                     )
