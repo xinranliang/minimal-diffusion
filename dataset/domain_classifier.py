@@ -15,6 +15,7 @@ import cv2
 import scipy, scipy.io
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.sampler import SubsetRandomSampler
 
 import torch
 import torch.nn as nn 
@@ -28,8 +29,7 @@ from utils import logger
 class Domain_CifarImageNet(datasets.ImageFolder):
     def __init__(
         self,
-        root, 
-        mode, # train or test
+        root,
         transform,
         target_transform
     ):
@@ -108,11 +108,11 @@ class DomainClassifier(nn.Module):
             }
         if not final:
             torch.save(
-                checkpoint, os.path.join(logdir, "model_param_{}".format(int(step)))
+                checkpoint, os.path.join(logdir, "model_param_{}.pth".format(int(step)))
             )
         else:
             torch.save(
-                checkpoint, os.path.join(logdir, "model_param_final")
+                checkpoint, os.path.join(logdir, "model_param_final.pth")
             )
     
     def load(self, ckpt_path):
@@ -174,6 +174,9 @@ def get_args():
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
     parser.add_argument("--mode", type=str, choices=["train", "eval"], help="whether to train or evaluate model")
+    parser.add_argument("--test-split", type=float, default=0.2, help="portion of dataset splitted to evaluation")
+
+    parser.add_argument("--ckpt-path", type=str, required=False, help="path directory to pretrained checkpoint for evaluation")
 
     parser.add_argument("--num-gpus", type=int, help="number of gpus used for training")
     parser.add_argument("--num-epochs", type=int, help="number of training epochs")
@@ -189,9 +192,10 @@ def get_args():
     return args 
 
 
-def train(args):
+def train(args, train_sampler, test_sampler):
     # set up dataset
     if args.dataset == "cifar10-imagenet":
+        # train mode
         trainsform_train = transforms.Compose(
             [
                 transforms.RandomHorizontalFlip(),
@@ -199,15 +203,33 @@ def train(args):
                 transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
             ]
         )
-        domain_dataset = Domain_CifarImageNet(
+        domain_dataset_train = Domain_CifarImageNet(
             root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
             transform=trainsform_train,
             target_transform=None
         )
-        domain_loader = DataLoader(
-            domain_dataset,
+        domain_loader_train = DataLoader(
+            domain_dataset_train,
             batch_size=args.batch_size,
-            shuffle=True,
+            sampler=train_sampler,
+            num_workers=args.num_gpus * 4,
+        )
+        # test_mode
+        trainsform_test = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+            ]
+        )
+        domain_dataset_test = Domain_CifarImageNet(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+            transform=trainsform_test,
+            target_transform=None
+        )
+        domain_loader_test = DataLoader(
+            domain_dataset_test,
+            batch_size=args.batch_size,
+            sampler=test_sampler,
             num_workers=args.num_gpus * 4,
         )
     
@@ -226,18 +248,18 @@ def train(args):
     # set up logger
     ckpt_dir = os.path.join(args.log_dir, "ckpt")
     os.makedirs(ckpt_dir, exist_ok=True)
-    train_logger = logger(args.num_epochs * len(domain_loader), ["tb", "csv"], args.log_dir)
+    train_logger = logger(args.num_epochs * len(domain_loader_train), ["tb", "csv"], args.log_dir)
 
     model.train()
     step = 0
     for epoch in range(args.num_epochs):
-        for _, (image, label) in enumerate(domain_loader):
+        for _, (image, label) in enumerate(domain_loader_train):
             if args.num_gpus > 1:
                 pred_loss, pred_acc = model.module.update(image, label)
             else:
                 pred_loss, pred_acc = model.update(image, label)
             
-            data_dict = {"pred_loss": pred_loss, "pred_acc": pred_acc}
+            data_dict = {"pred_loss": pred_loss.detach().cpu().numpy(), "pred_acc": pred_acc.detach().cpu().numpy()}
             if args.local_rank == 0:
                 train_logger.log(data_dict, step)
             step += 1
@@ -246,6 +268,17 @@ def train(args):
             model.save(ckpt_dir, epoch)
     if args.local_rank == 0:
         model.save(ckpt_dir, epoch, final=True)
+    
+    # evaluate
+    model.eval()
+    accs = []
+    for image, label in iter(domain_loader_test):
+        with torch.no_grad():
+            _, acc = model.get_error(image, label)
+            accs.append(acc.detach().cpu().numpy())
+    final_accuracy = np.array(accs, dtype=float).mean()
+    print(f"Final test accuracy at epoch {epoch + 1}: {final_accuracy:.3f}")
+
     return
 
 
@@ -268,14 +301,24 @@ def main():
     
     args.log_dir = os.path.join(
         "/n/fs/xl-diffbia/projects/minimal-diffusion/logs", args.date, args.dataset, "domain_classifier",
-        "bs{}_lr{}_decay{}".format(arhs.batch_size, args.learning_rate, args.weight_decay)
+        "bs{}_lr{}_decay{}".format(args.batch_size, args.learning_rate, args.weight_decay)
     )
     os.makedirs(args.log_dir, exist_ok=True)
 
+    # set up dataset
+    if args.dataset == "cifar10-imagenet":
+        full_length = 260000 # total 270000 and exclude 10000 cifar10-test
+        indices = list(range(full_length))
+        split = int(np.floor(args.test_split * full_length))
+        # random shuffle indices
+        np.random.shuffle(indices)
+
+        train_idx, test_idx = indices[split:], indices[:split]
+        train_sampler = SubsetRandomSampler(train_idx)
+        test_sampler = SubsetRandomSampler(test_idx)
+
     if args.mode == "train":
-        train(args)
-    elif args.mode == "eval":
-        evaluate(args)
+        train(args, train_sampler, test_sampler)
     else:
         raise NotImplementedError
 
