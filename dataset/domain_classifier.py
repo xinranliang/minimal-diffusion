@@ -311,7 +311,7 @@ def main():
         with open(
             os.path.join(
                 "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split/domain_classifier",
-                "train{}_test{}_index.pkl".format(train_split, test_split)
+                "train{}_test{}_index.pkl".format(args.train_split, args.test_split)
             ), "rb"
         ) as f:
             file_load = pickle.load(f)
