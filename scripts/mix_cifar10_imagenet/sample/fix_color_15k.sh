@@ -1,6 +1,6 @@
 # run 1
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=8 --master_port 8103 main.py \
-    --arch UNet --dataset mix-cifar10-imagenet --batch-size 5000 --num-sampled-images 15000 --samplin-only --sampling-steps 250 \
+    --arch UNet --dataset mix-cifar10-imagenet --batch-size 5000 --num-sampled-images 15000 --sampling-only --sampling-steps 250 \
     --data-dir ./datasets --save-dir ./logs/ --date 2023-04-02 --color 15000 --grayscale 0 --fix color \
     --class-cond --classifier-free-w 0.0 --class-cond-dropout 0.1 \
     --ckpt-name mix_cifar10_imagenet_cond_color15_gray0_ema \

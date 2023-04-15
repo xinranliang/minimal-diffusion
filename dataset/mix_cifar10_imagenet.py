@@ -122,6 +122,26 @@ def split_random_baseline(date):
             split=True
         )
 
+def split_domain_classifier(train_split, test_split):
+    full_length = 260000 # total 270000 and exclude 10000 cifar10-test
+    indices = list(range(full_length))
+    split = int(np.floor(test_split * full_length))
+    # random shuffle indices
+    np.random.shuffle(indices)
+
+    train_idx, test_idx = indices[split:], indices[:split]
+    index_dict = {
+        "train_index": train_idx,
+        "test_index": test_idx
+    }
+    folder_path = "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split/domain_classifier"
+    os.makedirs(folder_path, exist_ok=True)
+
+    with open(os.path.join(folder_path, "train{}_test{}_index.pkl".format(train_split, test_split)), "wb") as f:
+        pickle.dump(index_dict, f)
+    
+    return 
+
 
 class Mix_CIFAR10ImageNet(datasets.ImageFolder):
     def __init__(
@@ -283,7 +303,9 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
 if __name__ == "__main__":
     # split_fixcolor(date="2023-04-02")
     # split_fixcolor(date="2023-04-03")
-    split_fixgray(date="2023-04-02")
-    split_fixgray(date="2023-04-03")
+    # split_fixgray(date="2023-04-02")
+    # split_fixgray(date="2023-04-03")
     # split_random_baseline(date="2023-04-06")
     # split_random_baseline(date="2023-04-07")
+    split_domain_classifier(train_split=0.8, test_split=0.2)
+    split_domain_classifier(train_split=0.9, test_split=0.1)

@@ -174,6 +174,7 @@ def get_args():
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
     parser.add_argument("--mode", type=str, choices=["train", "eval"], help="whether to train or evaluate model")
+    parser.add_argument("--train-split", type=float, default=0.8, help="portion of dataset splitted to training")
     parser.add_argument("--test-split", type=float, default=0.2, help="portion of dataset splitted to evaluation")
 
     parser.add_argument("--ckpt-path", type=str, required=False, help="path directory to pretrained checkpoint for evaluation")
@@ -264,7 +265,7 @@ def train(args, train_sampler, test_sampler):
                 train_logger.log(data_dict, step)
             step += 1
 
-        if args.local_rank == 0:
+        if args.local_rank == 0 and (epoch + 1) % 5 == 0:
             model.save(ckpt_dir, epoch)
     if args.local_rank == 0:
         model.save(ckpt_dir, epoch, final=True)
@@ -307,13 +308,15 @@ def main():
 
     # set up dataset
     if args.dataset == "cifar10-imagenet":
-        full_length = 260000 # total 270000 and exclude 10000 cifar10-test
-        indices = list(range(full_length))
-        split = int(np.floor(args.test_split * full_length))
-        # random shuffle indices
-        np.random.shuffle(indices)
+        with open(
+            os.path.join(
+                "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split/domain_classifier",
+                "train{}_test{}_index.pkl".format(train_split, test_split)
+            ), "rb"
+        ) as f:
+            file_load = pickle.load(f)
 
-        train_idx, test_idx = indices[split:], indices[:split]
+        train_idx, test_idx = file_load["train_index"], file_load["test_index"]
         train_sampler = SubsetRandomSampler(train_idx)
         test_sampler = SubsetRandomSampler(test_idx)
 

@@ -40,9 +40,13 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
                     image_index = pickle.load(f)["gray_index"]
         
         elif dataset == "mix-cifar10-imagenet":
+            root_dir = "./datasets/cifar10-imagenet" # consistent with logging
             if mode == "color":
                 with open(os.path.join(root_dir, "index_split", date, "color15000_gray0_index.pkl"), "rb") as f:
                     image_index = pickle.load(f)["color_index"]
+            elif mode == "gray":
+                with open(os.path.join(root_dir, "index_split", date, "gray15000_color0_index.pkl"), "rb") as f:
+                    image_index = pickle.load(f)["gray_index"]
     
     if dataset == "cifar10":
         root_dir = os.path.join(root_dir, "cifar-10-batches-py")
@@ -106,12 +110,12 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
             transform = None,
             target_transform = None
         )
-        print(image_index)
-        input("press enter to continue")
 
         if image_index is not None:
             for img_idx in image_index:
                 image, label = full_data.__getitem__(img_idx)
+                if mode == "gray":
+                    image = image.convert("L")
                 image.save(os.path.join(save_folder, "%s.png" % (img_idx)))
 
 
