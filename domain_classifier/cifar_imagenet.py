@@ -24,7 +24,7 @@ from torchvision.models import resnet50, ResNet50_Weights, resnet18, ResNet18_We
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 
-from utils import logger
+from dataset.utils import logger
 
 class Domain_CifarImageNet(datasets.ImageFolder):
     def __init__(
@@ -120,6 +120,7 @@ class DomainClassifier(nn.Module):
         self.cnn.load_state_dict(checkpoint["cnn"])
         self.head.load_state_dict(checkpoint["head"])
         self.opt.load_state_dict(checkpoint["opt"])
+        print(f"Loading model checkpoint from {ckpt_path}.")
 
     def forward(self, x):
         # forward resnet to get last layer feature
@@ -173,7 +174,7 @@ def get_args():
     parser.add_argument("--dataset", type=str, help="specify what dataset source")
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
-    parser.add_argument("--mode", type=str, choices=["train", "eval"], help="whether to train or evaluate model")
+    parser.add_argument("--mode", type=str, choices=["train", "test"], help="whether to train or test model")
     parser.add_argument("--train-split", type=float, default=0.8, help="portion of dataset splitted to training")
     parser.add_argument("--test-split", type=float, default=0.2, help="portion of dataset splitted to evaluation")
 
@@ -283,6 +284,72 @@ def train(args, train_sampler, test_sampler):
     return
 
 
+def test(args, train_sampler, test_sampler):
+    # set up dataset
+    if args.dataset == "cifar10-imagenet":
+        data_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+            ]
+        )
+        domain_dataset = Domain_CifarImageNet(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+            transform=data_transform,
+            target_transform=None
+        )
+        domain_loader_train = DataLoader(
+            domain_dataset,
+            batch_size=args.batch_size,
+            sampler=train_sampler,
+            num_workers=args.num_gpus * 4,
+        )
+        domain_loader_test = DataLoader(
+            domain_dataset,
+            batch_size=args.batch_size,
+            sampler=test_sampler,
+            num_workers=args.num_gpus * 4,
+        )
+    
+    # set up model
+    model = DomainClassifier(
+        num_classes=args.num_domains,
+        arch=args.arch,
+        pretrained=args.pretrained,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        device=args.device
+    )
+    if args.num_gpus > 1:
+        model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
+    if args.ckpt_path:
+        model.load(args.ckpt_path)
+    model.eval()
+
+    # evaluate
+    train_accs = []
+    num_train = 0
+    for image, label in iter(domain_loader_train):
+        with torch.no_grad():
+            _, train_acc = model.get_error(image, label)
+            train_accs.append(train_acc.detach().cpu().numpy())
+            num_train += label.shape[0]
+    train_accuracy = np.array(train_accs, dtype=float).mean()
+    print(f"Training set accuracy: {train_accuracy:.3f} over {num_train} images.")
+
+    test_accs = []
+    num_test = 0
+    for image, label in iter(domain_loader_test):
+        with torch.no_grad():
+            _, test_acc = model.get_error(image, label)
+            test_accs.append(test_acc.detach().cpu().numpy())
+            num_test += label.shape[0]
+    test_accuracy = np.array(test_accs, dtype=float).mean()
+    print(f"Test set accuracy: {test_accuracy:.3f} over {num_test} images.")
+
+    return
+
+
 def main():
     args = get_args()
 
@@ -300,11 +367,12 @@ def main():
         args.batch_size = args.batch_size // args.num_gpus
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
     
-    args.log_dir = os.path.join(
-        "/n/fs/xl-diffbia/projects/minimal-diffusion/logs", args.date, args.dataset, "domain_classifier",
-        "bs{}_lr{}_decay{}".format(args.batch_size, args.learning_rate, args.weight_decay)
-    )
-    os.makedirs(args.log_dir, exist_ok=True)
+    if args.mode == "train":
+        args.log_dir = os.path.join(
+            "/n/fs/xl-diffbia/projects/minimal-diffusion/logs", args.date, args.dataset, "domain_classifier",
+            "bs{}_lr{}_decay{}".format(args.batch_size, args.learning_rate, args.weight_decay)
+        )
+        os.makedirs(args.log_dir, exist_ok=True)
 
     # set up dataset
     if args.dataset == "cifar10-imagenet":
@@ -322,6 +390,8 @@ def main():
 
     if args.mode == "train":
         train(args, train_sampler, test_sampler)
+    elif args.mode == "test":
+        test(args, train_sampler, test_sampler)
     else:
         raise NotImplementedError
 

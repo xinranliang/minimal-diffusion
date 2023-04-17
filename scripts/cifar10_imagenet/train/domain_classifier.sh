@@ -17,7 +17,7 @@ cd /n/fs/xl-diffbia/projects/minimal-diffusion
 
 for lr in 0.01 0.005 0.001 0.0005 0.0001; do 
     for wd in 0.001 0.0001 0.00001; do 
-        CUDA_VISIBLE_DEVICES=0 python dataset/domain_classifier.py \
+        CUDA_VISIBLE_DEVICES=0 python -m domain_classifier.cifar_imagenet \
         --arch resnet50 --dataset cifar10-imagenet --num-domains 2 --mode train \
         --num-epochs 10 --batch-size 256 --learning-rate $lr --weight-decay $wd \
         --num-gpus 1 --date 2023-04-08
