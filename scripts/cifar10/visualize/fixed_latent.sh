@@ -19,6 +19,10 @@ cd /n/fs/xl-diffbia/projects/minimal-diffusion
     # --arch UNet --dataset cifar10 --batch-size 500 --num-samples 500 --sampling-only --sampling-steps 250 --sampling-mode color --num-visualize 100 \
     # --data-dir ./datasets --save-dir ./logs/ --date 2023-04-01 --class-cond --classifier-free-w 0.0
 
+# CUDA_VISIBLE_DEVICES=0 python -m visualize.fixed_latent \
+    # --arch UNet --dataset mix-cifar10-imagenet --batch-size 500 --num-samples 500 --sampling-only --sampling-steps 250 --sampling-mode color --num-visualize 100 \
+    # --data-dir ./datasets --save-dir ./logs/ --date 2023-04-02 --class-cond --classifier-free-w 0.0
+
 CUDA_VISIBLE_DEVICES=0 python -m visualize.fixed_latent \
-    --arch UNet --dataset mix-cifar10-imagenet --batch-size 500 --num-samples 500 --sampling-only --sampling-steps 250 --sampling-mode color --num-visualize 100 \
+    --arch UNet --dataset mix-cifar10-imagenet --batch-size 500 --num-samples 500 --sampling-only --sampling-steps 250 --sampling-mode gray --num-visualize 100 \
     --data-dir ./datasets --save-dir ./logs/ --date 2023-04-02 --class-cond --classifier-free-w 0.0

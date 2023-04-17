@@ -212,7 +212,7 @@ def plot_fixcolor(num_color, dataset):
             lns2 = ax2.errorbar(xs, precision_color_mean, yerr=precision_color_err, color="blue", capsize=3, label=r"Precision $\uparrow$")
             lns3 = ax2.errorbar(xs, recall_color_mean, yerr=recall_color_err, color="green", capsize=3, label=r"Recall $\uparrow$")
             
-            ax1.set_xlabel("Number of training samples from Gray domain (in thousands)", fontsize=10)
+            ax1.set_xlabel("$N_{gray}$ (in thousands)", fontsize=10)
             ax1.set_xticks(xs, xs)
             ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 
@@ -247,16 +247,16 @@ def plot_fixcolor(num_color, dataset):
         recall_color_mean, recall_color_err = np.mean(recall_color, axis=0), np.std(recall_color, axis=0)
 
         with plt.style.context('ggplot'):
-            fig, ax1 = plt.subplots(figsize=(10, 4))
+            fig, ax1 = plt.subplots(figsize=(14, 4))
             ax2 = ax1.twinx()
 
             lns1 = ax1.errorbar(xs, fid_color_mean, yerr=fid_color_err, color="red", capsize=3, label="FID $\downarrow$")
             lns2 = ax2.errorbar(xs, precision_color_mean, yerr=precision_color_err, color="blue", capsize=3, label=r"Precision $\uparrow$")
             lns3 = ax2.errorbar(xs, recall_color_mean, yerr=recall_color_err, color="green", capsize=3, label=r"Recall $\uparrow$")
             
-            ax1.set_xlabel("Number of training samples from Gray domain (in thousands)", fontsize=10)
+            ax1.set_xlabel("$N_{gray}$ (in thousands)", fontsize=10)
             ax1.set_xticks(xs, xs)
-            ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+            ax1.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 
             ax1.set_ylabel("FID", fontsize=10)
             ax2.set_ylabel("Precision and Recall", fontsize=10)
@@ -274,6 +274,51 @@ def plot_fixcolor(num_color, dataset):
         plt.savefig(os.path.join(f"/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-04-02/{dataset}/figures", "fixcolor_15k_xnum.png"), dpi=300, bbox_inches="tight")
         plt.savefig(os.path.join(f"/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-04-02/{dataset}/figures", "fixcolor_15k_xnum.pdf"), dpi=300, bbox_inches="tight")
         plt.close()
+
+
+def plot_fixgray(num_gray, dataset):
+    if num_gray == 15000 and dataset == "mix-cifar10-imagenet":
+        xs = np.array([0, 7500, 15000, 22500, 30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000], dtype=float) / 1000
+
+        fid_gray = [[18.338, 10.176, 7.241, 6.806, 7.094, 7.935, 8.33, 8.118, 8.909, 8.731, 8.676, 9.042], [18.614, 10.422, 7.906, 6.834, 6.891, 7.657, 8.21, 7.997, 8.752, 8.171, 8.94, 9.042]]
+        fid_gray = np.vstack(fid_gray)
+        fid_gray_mean, fid_gray_err = np.mean(fid_gray, axis=0), np.std(fid_gray, axis=0)
+        precision_gray = [[0.766, 0.744, 0.734, 0.719, 0.718, 0.706, 0.689, 0.696, 0.691, 0.684, 0.679, 0.691], [0.759, 0.752, 0.729, 0.725, 0.722, 0.702, 0.694, 0.695, 0.687, 0.686, 0.684, 0.691]]
+        precision_gray = np.vstack(precision_gray)
+        precision_gray_mean, precision_gray_err = np.mean(precision_gray, axis=0), np.std(precision_gray, axis=0)
+        recall_gray = [[0.478, 0.535, 0.557, 0.57, 0.571, 0.573, 0.589, 0.578, 0.583, 0.578, 0.582, 0.577], [0.487, 0.522, 0.545, 0.569, 0.574, 0.581, 0.581, 0.583, 0.588, 0.583, 0.583, 0.577]]
+        recall_gray = np.vstack(recall_gray)
+        recall_gray_mean, recall_gray_err = np.mean(recall_gray, axis=0), np.std(recall_gray, axis=0)
+
+        with plt.style.context('ggplot'):
+            fig, ax1 = plt.subplots(figsize=(14, 4))
+            ax2 = ax1.twinx()
+
+            lns1 = ax1.errorbar(xs, fid_gray_mean, yerr=fid_gray_err, color="red", capsize=3, label="FID $\downarrow$")
+            lns2 = ax2.errorbar(xs, precision_gray_mean, yerr=precision_gray_err, color="blue", capsize=3, label=r"Precision $\uparrow$")
+            lns3 = ax2.errorbar(xs, recall_gray_mean, yerr=recall_gray_err, color="green", capsize=3, label=r"Recall $\uparrow$")
+            
+            ax1.set_xlabel("$N_{color}$ (in thousands)", fontsize=10)
+            ax1.set_xticks(xs, xs)
+            ax1.xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+
+            ax1.set_ylabel("FID", fontsize=10)
+            ax2.set_ylabel("Precision and Recall", fontsize=10)
+            ax1.set_yticks(np.linspace(6.5, 18.5, num=11), np.linspace(6.5, 18.5, num=11))
+            ax2.set_yticks(np.linspace(0.45, 0.8, num=11), np.linspace(0.45, 0.8, num=11))
+            ax1.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+            ax2.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+
+            plt.title("Class-conditional grayscale generation quality ($N_{gray}$ = 15k, CINIC10)", fontsize=10)
+
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax2.legend(lines1 + lines2, labels1 + labels2)
+            
+        plt.savefig(os.path.join(f"/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-04-02/{dataset}/figures", "fixgray_15k_xnum.png"), dpi=300, bbox_inches="tight")
+        plt.savefig(os.path.join(f"/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-04-02/{dataset}/figures", "fixgray_15k_xnum.pdf"), dpi=300, bbox_inches="tight")
+        plt.close()
+
     
 
 
@@ -285,4 +330,5 @@ if __name__ == "__main__":
     elif args.date == "2023-02-06" or args.date == "2023-02-07":
         plot_020607()
     elif args.date == "2023-04-01" or args.date == "2023-04-02":
-        plot_fixcolor(num_color = 15000, dataset = args.dataset)
+        # plot_fixcolor(num_color = 15000, dataset = args.dataset)
+        plot_fixgray(num_gray = 15000, dataset = args.dataset)

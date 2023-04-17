@@ -191,34 +191,64 @@ def sample_fixed_latent(args, model, diffusion):
         ]
 
     elif args.dataset == "mix-cifar10-imagenet":
-        model_ckpts = [
-            os.path.join(args.save_dir, "color15000_gray0", args.diffusion_config, "ckpt", "epoch_4000_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray7500", args.diffusion_config, "ckpt", "epoch_2849_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray15000", args.diffusion_config, "ckpt", "epoch_2124_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray22500", args.diffusion_config, "ckpt", "epoch_1699_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray30000", args.diffusion_config, "ckpt", "epoch_1419_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray60000", args.diffusion_config, "ckpt", "epoch_849_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray90000", args.diffusion_config, "ckpt", "epoch_609_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray120000", args.diffusion_config, "ckpt", "epoch_474_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray150000", args.diffusion_config, "ckpt", "epoch_389_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray180000", args.diffusion_config, "ckpt", "epoch_329_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray210000", args.diffusion_config, "ckpt", "epoch_284_ema_0.9995.pth"),
-            os.path.join(args.save_dir, "color15000_gray240000", args.diffusion_config, "ckpt", "epoch_249_ema_0.9995.pth"),
-        ]
-        file_paths = [
-            os.path.join(args.save_dir, "color15000_gray0", args.diffusion_config, "visualize", f"color15k_gray0k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray7500", args.diffusion_config, "visualize", f"color15k_gray7.5k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray15000", args.diffusion_config, "visualize", f"color15k_gray15k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray22500", args.diffusion_config, "visualize", f"color15k_gray22.5k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray30000", args.diffusion_config, "visualize", f"color15k_gray30k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray60000", args.diffusion_config, "visualize", f"color15k_gray60k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray90000", args.diffusion_config, "visualize", f"color15k_gray90k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray120000", args.diffusion_config, "visualize", f"color15k_gray120k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray150000", args.diffusion_config, "visualize", f"color15k_gray150k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray180000", args.diffusion_config, "visualize", f"color15k_gray180k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray210000", args.diffusion_config, "visualize", f"color15k_gray210k_num{args.num_visualize}.png"),
-            os.path.join(args.save_dir, "color15000_gray240000", args.diffusion_config, "visualize", f"color15k_gray240k_num{args.num_visualize}.png"),
-        ]
+        if args.sampling_mode == "color":
+            model_ckpts = [
+                os.path.join(args.save_dir, "color15000_gray0", args.diffusion_config, "ckpt", "epoch_4000_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray7500", args.diffusion_config, "ckpt", "epoch_2849_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray15000", args.diffusion_config, "ckpt", "epoch_2124_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray22500", args.diffusion_config, "ckpt", "epoch_1699_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray30000", args.diffusion_config, "ckpt", "epoch_1419_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray60000", args.diffusion_config, "ckpt", "epoch_849_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray90000", args.diffusion_config, "ckpt", "epoch_609_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray120000", args.diffusion_config, "ckpt", "epoch_474_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray150000", args.diffusion_config, "ckpt", "epoch_389_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray180000", args.diffusion_config, "ckpt", "epoch_329_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray210000", args.diffusion_config, "ckpt", "epoch_284_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "color15000_gray240000", args.diffusion_config, "ckpt", "epoch_249_ema_0.9995.pth"),
+            ]
+            file_paths = [
+                os.path.join(args.save_dir, "color15000_gray0", args.diffusion_config, "visualize", f"color15k_gray0k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray7500", args.diffusion_config, "visualize", f"color15k_gray7.5k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray15000", args.diffusion_config, "visualize", f"color15k_gray15k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray22500", args.diffusion_config, "visualize", f"color15k_gray22.5k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray30000", args.diffusion_config, "visualize", f"color15k_gray30k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray60000", args.diffusion_config, "visualize", f"color15k_gray60k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray90000", args.diffusion_config, "visualize", f"color15k_gray90k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray120000", args.diffusion_config, "visualize", f"color15k_gray120k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray150000", args.diffusion_config, "visualize", f"color15k_gray150k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray180000", args.diffusion_config, "visualize", f"color15k_gray180k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray210000", args.diffusion_config, "visualize", f"color15k_gray210k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "color15000_gray240000", args.diffusion_config, "visualize", f"color15k_gray240k_num{args.num_visualize}.png"),
+            ]
+        elif args.sampling_mode == "gray":
+            model_ckpts = [
+                os.path.join(args.save_dir, "gray15000_color0", args.diffusion_config, "ckpt", "epoch_4000_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color7500", args.diffusion_config, "ckpt", "epoch_2849_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color15000", args.diffusion_config, "ckpt", "epoch_2124_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color22500", args.diffusion_config, "ckpt", "epoch_1699_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color30000", args.diffusion_config, "ckpt", "epoch_1419_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color60000", args.diffusion_config, "ckpt", "epoch_849_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color90000", args.diffusion_config, "ckpt", "epoch_609_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color120000", args.diffusion_config, "ckpt", "epoch_474_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color150000", args.diffusion_config, "ckpt", "epoch_389_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color180000", args.diffusion_config, "ckpt", "epoch_329_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color210000", args.diffusion_config, "ckpt", "epoch_284_ema_0.9995.pth"),
+                os.path.join(args.save_dir, "gray15000_color240000", args.diffusion_config, "ckpt", "epoch_249_ema_0.9995.pth"),
+            ]
+            file_paths = [
+                os.path.join(args.save_dir, "gray15000_color0", args.diffusion_config, "visualize", f"gray15k_color0k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color7500", args.diffusion_config, "visualize", f"gray15k_color7.5k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color15000", args.diffusion_config, "visualize", f"gray15k_color15k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color22500", args.diffusion_config, "visualize", f"gray15k_color22.5k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color30000", args.diffusion_config, "visualize", f"gray15k_color30k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color60000", args.diffusion_config, "visualize", f"gray15k_color60k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color90000", args.diffusion_config, "visualize", f"gray15k_color90k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color120000", args.diffusion_config, "visualize", f"gray15k_color120k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color150000", args.diffusion_config, "visualize", f"gray15k_color150k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color180000", args.diffusion_config, "visualize", f"gray15k_color180k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color210000", args.diffusion_config, "visualize", f"gray15k_color210k_num{args.num_visualize}.png"),
+                os.path.join(args.save_dir, "gray15000_color240000", args.diffusion_config, "visualize", f"gray15k_color240k_num{args.num_visualize}.png"),
+            ]
 
     assert len(model_ckpts) == len(file_paths)
 

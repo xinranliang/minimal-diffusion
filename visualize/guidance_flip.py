@@ -14,7 +14,7 @@ flip_ratio = (
     0.1, 0.3, 0.5, 0.7, 0.9
 )
 num_samples_per_class = 100
-num_visualize_per_class = 50
+num_visualize_per_class = 20
 
 def visualize_mnist_flip(date, random_sample):
     ws = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]
@@ -59,5 +59,5 @@ def visualize_mnist_flip(date, random_sample):
 
 
 if __name__ == "__main__":
-    visualize_mnist_flip(date="2023-04-08", random_sample=True)
-    visualize_mnist_flip(date="2023-04-09", random_sample=True)
+    visualize_mnist_flip(date="2023-04-08", random_sample=False)
+    visualize_mnist_flip(date="2023-04-09", random_sample=False)
