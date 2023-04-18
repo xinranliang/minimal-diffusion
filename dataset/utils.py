@@ -1,6 +1,7 @@
 import numpy as np
 
 import cv2
+from PIL import Image
 import os
 import csv
 from collections import OrderedDict
@@ -8,6 +9,8 @@ from time import time
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Dataset
+from torchvision import datasets, transforms
 
 
 def rgb_to_gray(image):
@@ -79,3 +82,59 @@ class logger(object):
                 "Steps: %d/%d \t loss: %.3f \t accuracy: %.3f " % (step, self.max_steps, data_dict["pred_loss"], data_dict["pred_acc"])
                 + f"\t Time elapsed: {(time() - self.start_time)/3600:.3f} hr"
             )
+
+
+class ArraytoImage(Dataset):
+    def __init__(
+        self,
+        paths,
+        transform,
+        target_transform
+    ):
+        super().__init__()
+        
+        # load images from numpy array
+        self.images, self.labels = [], []
+        for path in paths:
+            if path.endswith(".npy"):
+                new_images = np.load(path)
+            elif path.endswith("npz"):
+                file_load = np.load(path, allow_pickle=True)
+                new_images, new_labels = file_load["arr_0"], file_load["arr_1"]
+            else:
+                raise ValueError(f"Unrecognized file type: {path}")
+            self.images.append(new_images)
+            self.labels.append(new_labels)
+        self.images = np.concatenate(self.images, axis=0)
+        self.labels = np.concatenate(self.labels, axis=0)
+        
+        # assert in valid form
+        if self.images.min() >= 0 and self.images.max() <= 1:
+            self.images = (self.images * 255).astype("uint8")
+        elif self.images.min() >= -1 and self.images.max() <= 1:
+            self.images = (127.5 * (self.images + 1)).astype("uint8")
+        else:
+            assert self.images.min() >= 0 and self.images.max() <= 255
+        
+        assert len(self.images.shape) == 4, "Images must be a batch"
+        assert self.images.shape[0] == self.labels.shape[0], "Number of images and labels must match"
+        self.num_items = self.images.shape[0]
+
+        # transformation
+        self.transform = transform
+        self.target_transform = target_transform
+    
+    def __len__(self):
+        return self.num_items
+    
+    def __getitem__(self, index):
+        image, label = self.images[index], self.labels[index] # height x width x 3 (RGB order)
+        image = Image.fromarray(image, mode="RGB")
+
+        if self.transform is not None:
+            image = self.transform(image)
+        if self.target_transform is not None:
+            label = self.target_transform(label)
+        
+        return image, label
+

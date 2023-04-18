@@ -24,7 +24,7 @@ from torchvision.models import resnet50, ResNet50_Weights, resnet18, ResNet18_We
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 
-from dataset.utils import logger
+from dataset.utils import logger, ArraytoImage
 
 class Domain_CifarImageNet(datasets.ImageFolder):
     def __init__(
@@ -155,6 +155,17 @@ class DomainClassifier(nn.Module):
 
         return pred_loss, pred_acc
     
+    def pred_adapt(self, image, label):
+        image, label = image.to(self.device), label.to(self.device)
+        pred_logits = self.forward(image)
+        # compute accuracy
+        pred_probs = self.softmax(pred_logits)
+        pred_probs[:, 0] = torch.clamp(pred_probs[:, 0] / (50 / 260), min=0.0, max=1.0)
+        pred_probs[:, 1] = torch.clamp(pred_probs[:, 1] / (210 / 260), min=0.0, max=1.0)
+        pred_target = torch.argmax(pred_probs, dim=-1)
+        pred_acc = torch.sum(pred_target == label) / label.shape[0]
+        return pred_acc
+    
     def update(self, image, label):
         pred_loss, pred_acc = self.get_error(image, label)
 
@@ -174,7 +185,7 @@ def get_args():
     parser.add_argument("--dataset", type=str, help="specify what dataset source")
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
-    parser.add_argument("--mode", type=str, choices=["train", "test"], help="whether to train or test model")
+    parser.add_argument("--mode", type=str, choices=["train", "test-real", "test-fake"], help="whether to train or test model")
     parser.add_argument("--train-split", type=float, default=0.8, help="portion of dataset splitted to training")
     parser.add_argument("--test-split", type=float, default=0.2, help="portion of dataset splitted to evaluation")
 
@@ -284,7 +295,7 @@ def train(args, train_sampler, test_sampler):
     return
 
 
-def test(args, train_sampler, test_sampler):
+def test_real(args, train_sampler, test_sampler):
     # set up dataset
     if args.dataset == "cifar10-imagenet":
         data_transform = transforms.Compose(
@@ -350,6 +361,65 @@ def test(args, train_sampler, test_sampler):
     return
 
 
+def test_fake(args, adapt):
+    # set up dataset
+    if args.dataset == "cifar10-imagenet":
+        data_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+            ]
+        )
+        domain_dataset = ArraytoImage(
+            paths=[
+                "./logs/2023-04-06/cifar10-imagenet/cifar50000_imagenet0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar50_imagenet0_cond_ema_num50000_guidance0.0.npz",
+                "./logs/2023-04-07/cifar10-imagenet/cifar50000_imagenet0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar50_imagenet0_cond_ema_num50000_guidance0.0.npz"
+                ],
+            transform=data_transform,
+            target_transform=None
+        )
+        domain_dataloader = DataLoader(
+            domain_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_gpus * 4,
+        )
+
+    # set up model
+    model = DomainClassifier(
+        num_classes=args.num_domains,
+        arch=args.arch,
+        pretrained=args.pretrained,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        device=args.device
+    )
+    if args.num_gpus > 1:
+        model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
+    if args.ckpt_path:
+        model.load(args.ckpt_path)
+    model.eval()
+
+    syn_accs = []
+    num_syn = 0
+    for image, label in iter(domain_dataloader):
+        with torch.no_grad():
+            label = torch.zeros((image.shape[0], ), dtype=torch.long)
+            if adapt:
+                syn_acc = model.pred_adapt(image, label)
+            else:
+                _, syn_acc = model.get_error(image, label)
+            syn_accs.append(syn_acc.detach().cpu().numpy())
+            num_syn += image.shape[0]
+    synthetic_accuracy = np.array(syn_accs, dtype=float).mean()
+    if adapt:
+        print(f"Test set accuracy w/ adaptation: {synthetic_accuracy:.3f} over {num_syn} images.")
+    else:
+        print(f"Test set accuracy w/o adaptation: {synthetic_accuracy:.3f} over {num_syn} images.")
+
+    return
+
+
 def main():
     args = get_args()
 
@@ -375,7 +445,7 @@ def main():
         os.makedirs(args.log_dir, exist_ok=True)
 
     # set up dataset
-    if args.dataset == "cifar10-imagenet":
+    if args.dataset == "cifar10-imagenet" and (args.mode == "train" or args.mode == "test-real"):
         with open(
             os.path.join(
                 "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split/domain_classifier",
@@ -390,8 +460,11 @@ def main():
 
     if args.mode == "train":
         train(args, train_sampler, test_sampler)
-    elif args.mode == "test":
-        test(args, train_sampler, test_sampler)
+    elif args.mode == "test-real":
+        test_real(args, train_sampler, test_sampler)
+    elif args.mode == "test-fake":
+        test_fake(args, adapt=False)
+        test_fake(args, adapt=True)
     else:
         raise NotImplementedError
 
