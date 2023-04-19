@@ -98,11 +98,25 @@ def get_metadata(
                 "date": date
             }
         )
-    elif name == "mnist":
+    elif name == "mnist-full":
         metadata = EasyDict(
             {
                 "image_size": 28,
-                "num_classes": 10,
+                "num_classes": 10, # account for full dataset
+                "train_images": 60000,
+                "val_images": 10000,
+                "num_channels": 1,
+                "date": date,
+                "flip_left": flip_left,
+                "flip_right": flip_right,
+                "split": False
+            }
+        )
+    elif name == "mnist-subset":
+        metadata = EasyDict(
+            {
+                "image_size": 28,
+                "num_classes": 7, # only consider subset of flipped digits
                 "train_images": 60000,
                 "val_images": 10000,
                 "num_channels": 1,
@@ -219,7 +233,7 @@ def get_dataset(name, data_dir, metadata):
             date = metadata.date
         )
     
-    elif name == "mnist":
+    elif name == "mnist-full":
         transform_left = transforms.Compose(
             [
                 transforms.RandomResizedCrop(
@@ -250,6 +264,37 @@ def get_dataset(name, data_dir, metadata):
             ratio_right = metadata.flip_right,
         )
     
+    elif name == "mnist-subset":
+        transform_left = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        transform_right = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(p=1.0),
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = MNIST_FLIP(
+            root = os.path.join(data_dir, "mnist"),
+            train = True,
+            transform_left = transform_left,
+            transform_right = transform_right,
+            target_transform = None,
+            download = True,
+            date = metadata.date,
+            split = False,
+            ratio_left = metadata.flip_left,
+            ratio_right = metadata.flip_right,
+        )
+
     elif name == "celeba":
         # celebA has a large number of images, avoiding randomcropping.
         transform_train = transforms.Compose(

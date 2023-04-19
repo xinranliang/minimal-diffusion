@@ -13,10 +13,15 @@ import scipy, scipy.io
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset
 
-
-flip_classes = (
-    2, 3, 4, 5, 6, 7, 9
-)
+flip_classes = {
+    2: 0,
+    3: 1,
+    4: 2,
+    5: 3,
+    6: 4,
+    7: 5,
+    9: 6
+}
 
 def generate_mnist_index(date):
     transform_left = transforms.Compose(
@@ -126,7 +131,7 @@ class MNIST_FLIP(datasets.MNIST):
                     self.index_by_label[label].append(index)
             
             # sample by class
-            for class_label in flip_classes:
+            for class_label in flip_classes.keys():
                 num_data = len(self.index_by_label[class_label])
                 print("class {} has {} images".format(class_label, num_data))
                 self.index_by_label[class_label] = np.array(self.index_by_label[class_label], dtype=int)
@@ -149,12 +154,33 @@ class MNIST_FLIP(datasets.MNIST):
             print("Loading left/right horizontal flip split from file path {}".format(file_path))
             self.index_left = file_load["index_left"]
             self.index_right = file_load["index_right"]
+            self.match_dict = []   
+            for class_label in flip_classes.keys():
+                self.match_dict.extend(self.index_left[class_label]) 
+                self.match_dict.extend(self.index_right[class_label])
+            self.match_dict.sort() # sort in increasing order
+    
+    def __len__(self):
+        return len(self.match_dict)
     
 
     def __getitem__(self, index):
+        index = self.match_dict[index]
         image, target = super().__getitem__(index)
+        assert target in flip_classes.keys()
 
-        if target in flip_classes:
+        if index in self.index_left[target]:
+            # print(f"Left index {index} of class {target}, no flipping")
+            image = self.transform_left(image)
+        elif index in self.index_right[target]:
+            # print(f"Right index {index} of class {target}, flipping")
+            image = self.transform_right(image)
+        else:
+            raise ValueError("an index should either in left or right flip")
+        
+        target = flip_classes[target]
+
+        """if target in flip_classes:
             if index in self.index_left[target]:
                 # print(f"Left index {index} of class {target}, no flipping")
                 image = self.transform_left(image)
@@ -165,7 +191,7 @@ class MNIST_FLIP(datasets.MNIST):
                 raise ValueError("an index should either in left or right flip")
         else:
             # print(f"symmetric class of {target} at index {index}")
-            image = self.transform_left(image)
+            image = self.transform_left(image)"""
         
         return image, target
 
