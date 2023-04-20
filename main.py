@@ -66,7 +66,7 @@ def get_args():
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--data-dir", type=str, default="./dataset/")
 
-    parser.add_argument("--fix", type=str, choices=["total", "color", "gray", "none"], default="none", help="specify how to split training distribution")
+    parser.add_argument("--fix", type=str, choices=["total", "color", "gray", "none", "half"], default="none", help="specify how to split training distribution")
 
     # color-gray domain
     parser.add_argument("--color", required=False, help="ratio or number of training distribution to be turned into colored images")
@@ -229,6 +229,14 @@ def main(args):
                         args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
                     )
                     )
+        elif args.fix == "half":
+            log_dir = os.path.join(
+                    args.save_dir,
+                    "half{}".format(args.color),
+                    "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                        args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                    )
+            )
         else:
             raise NotImplementedError
     

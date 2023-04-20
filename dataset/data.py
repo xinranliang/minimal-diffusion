@@ -68,7 +68,7 @@ def get_metadata(
                 "date": date
             }
         )
-    elif name == "mix-cifar10-imagenet" and (fix == "total" or fix == "color" or fix == "gray"):
+    elif name == "mix-cifar10-imagenet" and (fix == "total" or fix == "color" or fix == "gray" or fix == "half"):
         metadata = EasyDict(
             {
                 "image_size": 32,

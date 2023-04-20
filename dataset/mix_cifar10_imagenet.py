@@ -122,6 +122,26 @@ def split_random_baseline(date):
             split=True
         )
 
+def split_halfcolor_halfgray(date):
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    numbers = [5000, 10000, 15000, 30000, 45000, 60000, 90000, 120000]
+    for num in numbers:
+        mydata = Mix_CIFAR10ImageNet(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+            transform=transform_train,
+            target_transform=None,
+            fix="half",
+            color_num=num,
+            gray_num=num,
+            date=date,
+            split=True
+        )
+
 def split_domain_classifier(train_split, test_split):
     full_length = 260000 # total 270000 and exclude 10000 cifar10-test
     indices = list(range(full_length))
@@ -149,7 +169,7 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
         root, # dataset root folder
         transform, # data augmentation
         target_transform, # default None
-        fix, # ["color", "gray", "none"] default fix color and add gray
+        fix, # ["color", "gray", "none", "half"] default fix color and add gray
         color_num, # base dataset size
         gray_num, # other dataset size
         date, # date of experiments to handle multiple runs
@@ -225,6 +245,19 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
             with open(file_path, "wb") as f:
                 pickle.dump(idx_dict, f)
         
+        elif split and fix == "half":
+            assert self.color_num == self.gray_num, "color number and gray number must be same in half-half setting"
+            self.color_index = np.random.choice(len(self.samples), size=self.color_num, replace=False)
+            self.gray_index = [no_idx for no_idx in range(len(self.samples)) if no_idx not in self.color_index]
+            self.gray_index = np.array(self.gray_index, dtype=int)
+            assert self.gray_num <= len(self.gray_index)
+            self.gray_index = np.random.choice(self.gray_index, size=self.gray_num, replace=False)
+
+            idx_dict = {"color_index": self.color_index, "gray_index": self.gray_index}
+            file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(color_num))
+            with open(file_path, "wb") as f:
+                pickle.dump(idx_dict, f)
+        
         else:
             if fix == "color" or fix == "gray":
                 if fix == "color":
@@ -256,6 +289,23 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
 
                 assert len(self.image_index) == self.color_num
                 random.shuffle(self.image_index)
+            
+            elif fix == "half":
+                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(color_num))
+                with open(file_path, "rb") as f:
+                    file_load = pickle.load(f)
+                print("Loading training samples index from file path {}".format(file_path))
+
+                self.color_index = file_load["color_index"]
+                self.gray_index = file_load["gray_index"]
+                assert len(self.color_index) == self.color_num
+                assert len(self.gray_index) == self.gray_num
+
+                # random shuffle all color and gray index
+                # both are numpy array (color_number, ) (gray_number, )
+                self.image_index = np.concatenate((self.color_index, self.gray_index), axis=0).astype(int)
+                random.shuffle(self.image_index)
+                assert len(self.image_index) == self.color_num + self.gray_num
         
     
     def __len__(self):
@@ -272,7 +322,7 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
         img_idx = self.image_index[index]
         img, target = super().__getitem__(img_idx) # in tensor
 
-        if self.fix == "color" or self.fix == "gray":
+        if self.fix == "color" or self.fix == "gray" or self.fix == "half":
             # decide color or grayscale
             if img_idx in self.gray_index:
                 assert img_idx not in self.color_index
@@ -307,5 +357,7 @@ if __name__ == "__main__":
     # split_fixgray(date="2023-04-03")
     # split_random_baseline(date="2023-04-06")
     # split_random_baseline(date="2023-04-07")
-    split_domain_classifier(train_split=0.8, test_split=0.2)
-    split_domain_classifier(train_split=0.9, test_split=0.1)
+    # split_domain_classifier(train_split=0.8, test_split=0.2)
+    # split_domain_classifier(train_split=0.9, test_split=0.1)
+    split_halfcolor_halfgray(date="2023-04-02")
+    split_halfcolor_halfgray(date="2023-04-03")
