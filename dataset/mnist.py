@@ -89,6 +89,27 @@ def get_mnist_index(date):
         cv2.imwrite(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/mnist", "MNIST_FLIP/test", date, f"index_{index}.png"), image)
         input("press enter to continue")
 
+def split_domain_classifier(train_split, test_split):
+    full_length = 41484 # augment dataset with left and right flip
+    indices = list(range(full_length))
+    split = int(np.floor(test_split * full_length))
+    # random shuffle indices
+    np.random.shuffle(indices)
+
+    train_idx, test_idx = np.array(indices[split:]), np.array(indices[:split])
+    train_idx_aug = train_idx + full_length
+    test_idx_aug = test_idx + full_length
+    train_idx = np.concatenate([train_idx, train_idx_aug], axis=0)
+    test_idx = np.concatenate([test_idx, test_idx_aug], axis=0)
+    index_dict = {
+        "train_index": train_idx.tolist(),
+        "test_index": test_idx.tolist()
+    }
+
+    folder_path = "/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/mnist/MNIST_FLIP/flip_index_split/domain_classifier"
+    os.makedirs(folder_path, exist_ok=True)
+    with open(os.path.join(folder_path, "train{}_test{}_index.pkl".format(train_split, test_split)), "wb") as f:
+        pickle.dump(index_dict, f)
 
 
 class MNIST_FLIP(datasets.MNIST):
@@ -200,4 +221,5 @@ class MNIST_FLIP(datasets.MNIST):
 if __name__ == "__main__":
     # generate_mnist_index("2023-04-08")
     # generate_mnist_index("2023-04-09")
-    get_mnist_index("2023-04-08")
+    # get_mnist_index("2023-04-08")
+    split_domain_classifier(0.8, 0.2)

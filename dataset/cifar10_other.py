@@ -73,7 +73,8 @@ def generate_fix_cifar10_other_index(fix_num, other_num, other_dataset, date):
         assert len(cifar10_paths) == fix_num
         # sample from imagenet subset
         assert other_num <= len(imagenet_paths), "number of required samples {} is more than number of available samples {}".format(other_num, len(imagenet_paths))
-        imagenet_paths = random.sample(imagenet_paths, other_num)
+        if other_num < len(imagenet_paths):
+            imagenet_paths = random.sample(imagenet_paths, other_num)
         assert len(imagenet_paths) == other_num
         # concatenate and random shuffle
         img_paths = cifar10_paths + imagenet_paths
@@ -96,6 +97,9 @@ def generate_cifar10_imagenet_index(date):
     other_num = [0, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000]
     for number in other_num:
         generate_fix_cifar10_other_index(50000, number, "imagenet", date)
+
+def generate_imagenet_index(date):
+    generate_fix_cifar10_other_index(0, 50000, "imagenet", date)
 
 
 CLASSES = (
@@ -207,5 +211,7 @@ if __name__ == "__main__":
     # recover_imagenet()
     # generate index
     # imagenet
-    generate_cifar10_imagenet_index(date="2023-04-06")
-    generate_cifar10_imagenet_index(date="2023-04-07")
+    # generate_cifar10_imagenet_index(date="2023-04-06")
+    # generate_cifar10_imagenet_index(date="2023-04-07")
+    generate_imagenet_index(date="2023-04-06")
+    generate_imagenet_index(date="2023-04-07")
