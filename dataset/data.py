@@ -7,7 +7,7 @@ from collections import OrderedDict
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
-from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup
+from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup, CIFAR_SuperClass
 from dataset.celeba import CelebA_Custom
 from dataset.mix_cifar10_imagenet import Mix_CIFAR10ImageNet
 from dataset.cifar10_other import CIFAR10_Other
@@ -20,6 +20,7 @@ def get_metadata(
     fix_name="cifar10", other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
     num_train_baseline=None, # this is for combine 2 dataset source as 1 domain - baseline for above setting
     flip_left=None, flip_right=None, # this is for testing mnist dataset
+    front_ratio=None, back_ratio=None, # this is for grouping cifar samples into super classes
 ):
     if name == "cifar10":
         if fix == "total":
@@ -123,6 +124,20 @@ def get_metadata(
                 "date": date,
                 "flip_left": flip_left,
                 "flip_right": flip_right,
+                "split": False
+            }
+        )
+    elif name == "cifar-superclass":
+        metadata = EasyDict(
+            {
+                "image_size": 32,
+                "num_classes": 5,
+                "train_images": 25000,
+                "val_images": 10000,
+                "num_channels": 3,
+                "front_ratio": front_ratio,
+                "back_ratio": back_ratio,
+                "date": date,
                 "split": False
             }
         )
@@ -293,6 +308,25 @@ def get_dataset(name, data_dir, metadata):
             split = False,
             ratio_left = metadata.flip_left,
             ratio_right = metadata.flip_right,
+        )
+    
+    elif name == "cifar-superclass":
+        transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = CIFAR_SuperClass(
+            root = os.path.join(data_dir, "cifar10"),
+            transform = transform_train,
+            target_transform = None,
+            train = True,
+            download = False,
+            front_ratio = metadata.front_ratio,
+            back_ratio = metadata.back_ratio,
+            split = False,
+            date = metadata.date,
         )
 
     elif name == "celeba":

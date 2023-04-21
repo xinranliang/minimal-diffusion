@@ -28,6 +28,17 @@ CLASSES = (
     "truck",
 )
 
+SUPER_CLASSES = {
+    0: [0, 8], # "airplane" + "ship"
+    1: [1, 9], # "automobile" + "truck"
+    2: [2, 6], # "bird" + "frog"
+    3: [3, 5], # "cat" + "dog"
+    4: [4, 7], # "deer" + "horse"
+}
+SUPER_CLASSES_INVERSE = {
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 3, 6: 2, 7: 4, 8: 0, 9: 1
+}
+
 
 def generate_index_cifar10():
     transform_train = transforms.Compose(
@@ -123,6 +134,50 @@ def check_fixgroup_cifar10():
         print("Color index has length {}".format(len(cifar10.color_index)))
         print("Gray index has length {}".format(len(cifar10.gray_index)))
         image, label = cifar10.__getitem__(200)
+    
+def split_by_class(date):
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    front_ratios = [0.1, 0.3, 0.5, 0.7, 0.9]
+    back_ratios = [0.9, 0.7, 0.5, 0.3, 0.1]
+    for front_ratio, back_ratio in zip(front_ratios, back_ratios):
+        mydata = CIFAR_SuperClass(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+            train=True,
+            transform=transform_train,
+            target_transform=None,
+            download=False,
+            split=True,
+            date=date,
+            front_ratio=front_ratio,
+            back_ratio=back_ratio
+        )
+
+def check_by_class(date):
+    transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+    front_ratios = [0.1, 0.3, 0.5, 0.7, 0.9]
+    back_ratios = [0.9, 0.7, 0.5, 0.3, 0.1]
+    for front_ratio, back_ratio in zip(front_ratios, back_ratios):
+        mydata = CIFAR_SuperClass(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+            train=True,
+            transform=transform_train,
+            target_transform=None,
+            download=False,
+            split=False,
+            date=date,
+            front_ratio=front_ratio,
+            back_ratio=back_ratio
+        )
 
 
 class CIFAR10_ColorGray(datasets.CIFAR10):
@@ -394,12 +449,84 @@ class CIFAR10_FixGroup(datasets.CIFAR10):
             target = self.target_transform(target)
 
         return img, target
+
+
+
+class CIFAR_SuperClass(datasets.CIFAR10):
+    def __init__(
+        self,
+        root,
+        transform,
+        target_transform,
+        train,
+        download,
+        front_ratio, # portion of samples from first half of classes [0-4]
+        back_ratio, # portion of samples from first half of classes [5-9]
+        split,
+        date
+    ):
+        super().__init__(root, train, transform, target_transform, download)
+
+        self.front_number = int(front_ratio * 5000)
+        self.back_number = int(back_ratio * 5000)
+
+        self.full_by_class = {
+            0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []
+        }
+        for index, label in enumerate(self.targets):
+            self.full_by_class[label].append(index)
+        for label in range(10):
+            assert len(self.full_by_class[label]) == 5000, "there should be 5000 images per class in full cifar dataset."
+
+        if split:
+            self.part_by_class = {
+                0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []
+            }
+            for label in range(0, 5):
+                tmp_arr = np.array(self.full_by_class[label], dtype=int)
+                self.part_by_class[label] = np.random.choice(tmp_arr, self.front_number, replace=False)
+            for label in range(5, 10):
+                tmp_arr = np.array(self.full_by_class[label], dtype=int)
+                self.part_by_class[label] = np.random.choice(tmp_arr, self.back_number, replace=False)
+            
+            file_path = os.path.join(root, "class_split", date, "front{}_back{}_index.pkl".format(front_ratio, back_ratio))
+            with open(file_path, "wb") as f:
+                pickle.dump(self.part_by_class, f)
+        
+        else:
+            file_path = os.path.join(root, "class_split", date, "front{}_back{}_index.pkl".format(front_ratio, back_ratio))
+            with open(file_path, "rb") as f:
+                file_load = pickle.load(f)
+            print("Loading front/back index by class from file path {}".format(file_path))
+
+            self.part_by_class = file_load # this should be a dict
+
+            self.match_list = []
+            for label in range(10):
+                self.match_list.extend(self.part_by_class[label].tolist())
+            random.shuffle(self.match_list)
+            assert len(self.match_list) == 25000, "there should be 25k items in splitted subset"
+
+    
+    def __len__(self):
+        # 25k training samples by default
+        return int(super().__len__() / 2)
+    
+    def __getitem__(self, index):
+        match_index = self.match_list[index]
+        image, target = super().__getitem__(match_index)
+        target = SUPER_CLASSES_INVERSE[target]
+        return image, target
         
     
 
 if __name__ == "__main__":
-    generate_index_cifar10()
+    # generate_index_cifar10()
     # check_cifar10_index()
-    generate_fixgroup_cifar10()
+    # generate_fixgroup_cifar10()
     # check_fixgroup_cifar10()
+    # split_by_class(date="2023-04-20")
+    # split_by_class(date="2023-04-21")
+    check_by_class(date="2023-04-20")
+    check_by_class(date="2023-04-21")
     

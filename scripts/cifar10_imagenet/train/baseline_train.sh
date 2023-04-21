@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#SBATCH --account=allcs    # Specify VisualAI
+#SBATCH --account=visualai    # Specify VisualAI
 #SBATCH --nodes=1             # nodes requested
 #SBATCH --ntasks=1            # tasks requested
 #SBATCH --cpus-per-task=8     # Specify the number of CPUs your task will need.
