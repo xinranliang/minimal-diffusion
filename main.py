@@ -409,11 +409,12 @@ def main(args):
                 sampled_images,
                 labels,
             )
-        colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
-        if args.local_rank == 0:
-            print("Number of color: {} \n".format(colorgray_dict["num_color"]))
-            print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
-            print("Finish sampling from pretrained checkpoint! Return")
+        if args.fix == "total" or args.fix == "color" or args.fix == "gray" or args.fix == "half":
+            colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
+            if args.local_rank == 0:
+                print("Number of color: {} \n".format(colorgray_dict["num_color"]))
+                print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
+                print("Finish sampling from pretrained checkpoint! Return")
         return
     if args.sampling_color_only:
         sampled_images, labels = sample_color_images(

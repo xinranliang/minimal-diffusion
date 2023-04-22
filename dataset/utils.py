@@ -94,7 +94,7 @@ class ArraytoImage(Dataset):
         super().__init__()
         
         # load images from numpy array
-        self.images, self.labels = [], []
+        self.images, self.labels, self.targets = [], [], []
         for path in paths:
             if path.endswith(".npy"):
                 new_images = np.load(path)
@@ -105,8 +105,18 @@ class ArraytoImage(Dataset):
                 raise ValueError(f"Unrecognized file type: {path}")
             self.images.append(new_images)
             self.labels.append(new_labels)
+            if "imagenet0" in path:
+                # generative model trained only on cifar real samples
+                new_targets = np.zeros_like(new_labels, dtype=int)
+            elif "cifar0" in path:
+                # generative model trained only on imagenet real samples
+                new_targets = np.ones_like(new_labels, dtype=int)
+            else:
+                raise NotImplementedError
+            self.targets.append(new_targets)
         self.images = np.concatenate(self.images, axis=0)
         self.labels = np.concatenate(self.labels, axis=0)
+        self.targets = np.concatenate(self.targets, axis=0)
         
         # assert in valid form
         if self.images.min() >= 0 and self.images.max() <= 1:
@@ -135,6 +145,7 @@ class ArraytoImage(Dataset):
             image = self.transform(image)
         if self.target_transform is not None:
             label = self.target_transform(label)
+        target = self.targets[index]
         
-        return image, label
+        return image, label, target # image, class label, cifar/imagenet domain
 

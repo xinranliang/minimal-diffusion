@@ -159,9 +159,9 @@ class DomainClassifier(nn.Module):
         image, label = image.to(self.device), label.to(self.device)
         pred_logits = self.forward(image)
         # compute accuracy
+        pred_logits[:, 0] = pred_logits[:, 0] - torch.log(torch.tensor(50 / 260, dtype=torch.float, device=self.device))
+        pred_logits[:, 1] = pred_logits[:, 1] - torch.log(torch.tensor(210 / 260, dtype=torch.float, device=self.device))
         pred_probs = self.softmax(pred_logits)
-        pred_probs[:, 0] = torch.clamp(pred_probs[:, 0] / (50 / 260), min=0.0, max=1.0)
-        pred_probs[:, 1] = torch.clamp(pred_probs[:, 1] / (210 / 260), min=0.0, max=1.0)
         pred_target = torch.argmax(pred_probs, dim=-1)
         pred_acc = torch.sum(pred_target == label) / label.shape[0]
         return pred_acc
@@ -373,7 +373,9 @@ def test_fake(args, adapt):
         domain_dataset = ArraytoImage(
             paths=[
                 "./logs/2023-04-06/cifar10-imagenet/cifar50000_imagenet0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar50_imagenet0_cond_ema_num50000_guidance0.0.npz",
-                "./logs/2023-04-07/cifar10-imagenet/cifar50000_imagenet0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar50_imagenet0_cond_ema_num50000_guidance0.0.npz"
+                "./logs/2023-04-07/cifar10-imagenet/cifar50000_imagenet0/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar50_imagenet0_cond_ema_num50000_guidance0.0.npz",
+                "./logs/2023-04-06/cifar10-imagenet/cifar0_imagenet210000/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar0_imagenet210_cond_ema_num50000_guidance0.0.npz",
+                "./logs/2023-04-07/cifar10-imagenet/cifar0_imagenet210000/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/cifar0_imagenet210_cond_ema_num50000_guidance0.0.npz"
                 ],
             transform=data_transform,
             target_transform=None
@@ -402,9 +404,9 @@ def test_fake(args, adapt):
 
     syn_accs = []
     num_syn = 0
-    for image, label in iter(domain_dataloader):
+    for image, _, label in iter(domain_dataloader):
         with torch.no_grad():
-            label = torch.zeros((image.shape[0], ), dtype=torch.long)
+            # label = torch.zeros((image.shape[0], ), dtype=torch.long)
             if adapt:
                 syn_acc = model.pred_adapt(image, label)
             else:
