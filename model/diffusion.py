@@ -518,15 +518,15 @@ def sample_N_images_mnist(
 
     Returns: Numpy array (num_classes x n x image_size) with images and corresponding labels.
     """
-    flip_classes = (
-        2, 3, 4, 5, 6, 7, 9
-    )
+    flip_classes = {
+        0: 2, 1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 9
+    }
     assert args.class_cond
-    assert N == len(flip_classes) * args.batch_size
+    assert N == len(flip_classes.keys()) * args.batch_size
 
     samples, labels, num_samples = [], [], 0
-    with tqdm(total=len(flip_classes)) as pbar:
-        for class_label in flip_classes:
+    with tqdm(total=len(flip_classes.keys())) as pbar:
+        for class_label in flip_classes.keys():
             # initialize noise
             if xT is None:
                 xT = (
@@ -549,3 +549,64 @@ def sample_N_images_mnist(
     samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
     samples = (127.5 * (samples + 1)).astype(np.uint8)
     return (samples, np.concatenate(labels)[:N])
+
+
+def sample_N_images_classifier(
+    N,
+    model,
+    diffusion,
+    classifer,
+    transform_test,
+    xT=None,
+    sampling_steps=250,
+    batch_size=64,
+    num_channels=3,
+    image_size=32,
+    num_classes=None,
+    args=None,
+):
+    samples, labels, num_samples = [], [], 0
+    num_processes, group = dist.get_world_size(), dist.group.WORLD
+    with tqdm(total=N) as pbar:
+        while num_samples < N:
+            if xT is None:
+                xT = (
+                    torch.randn(batch_size, num_channels, image_size, image_size)
+                    .float()
+                    .to(args.device)
+                )
+            if args.class_cond:
+                y = torch.randint(num_classes, (len(xT),), dtype=torch.int64).to(
+                    args.device
+                )
+            else:
+                y = None
+            gen_images = diffusion.sample_from_reverse_process(
+                model, xT, sampling_steps, {"y": y}, args.ddim, args.classifier_free_w
+            )
+            samples_list = [torch.zeros_like(gen_images) for _ in range(num_processes)]
+            if args.class_cond:
+                labels_list = [torch.zeros_like(y) for _ in range(num_processes)]
+                dist.all_gather(labels_list, y, group)
+                curr_labels = torch.cat(labels_list).detach()
+                # labels.append(torch.cat(labels_list).detach().cpu().numpy())
+
+            dist.all_gather(samples_list, gen_images, group)
+            curr_samples = torch.cat(samples_list).detach()
+            # samples.append(torch.cat(samples_list).detach().cpu().numpy())
+
+            curr_input = (curr_samples + 1.0) / 2 # normalize to 0-1
+            curr_input = transform_test(curr_input) # normalize by mean std
+            curr_pred = classifer.pred_adapt(curr_input)
+            index_select = torch.nonzero(curr_pred == 0).squeeze()
+            select_samples = torch.index_select(curr_samples, dim=0, index=index_select)
+            samples.append(select_samples.cpu().numpy())
+            if args.class_cond:
+                select_labels = torch.index_select(curr_labels, dim=0, index=index_select)
+                labels.append(select_labels.cpu().numpy())
+
+            num_samples += index_select.shape[0]
+            pbar.update(index_select.shape[0])
+    samples = np.concatenate(samples).transpose(0, 2, 3, 1)[:N] # shape = num_samples x height x width x n_channel
+    samples = (127.5 * (samples + 1)).astype(np.uint8)
+    return (samples, np.concatenate(labels)[:N] if args.class_cond else None)

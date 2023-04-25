@@ -46,11 +46,11 @@ def get_metadata(
                 {
                     "image_size": 32,
                     "num_classes": 10,
-                    "train_images": int(color) + int(grayscale),
+                    "train_images": color + grayscale,
                     "val_images": 10000,
                     "num_channels": 3,
-                    "color_number": int(color),
-                    "gray_number": int(grayscale),
+                    "color_number": color,
+                    "gray_number": grayscale,
                     "fix": fix,
                     "split": False,
                     "date": date
@@ -61,10 +61,10 @@ def get_metadata(
             {
                 "image_size": 32,
                 "num_classes": 10,
-                "train_images": int(fix_num) + int(other_num),
+                "train_images": fix_num + other_num,
                 "val_images": 10000,
-                "num_cifar10": int(fix_num),
-                "num_imagenet": int(other_num),
+                "num_cifar10": fix_num,
+                "num_imagenet": other_num,
                 "num_channels": 3,
                 "date": date
             }
@@ -74,10 +74,10 @@ def get_metadata(
             {
                 "image_size": 32,
                 "num_classes": 10,
-                "train_images": int(color) + int(grayscale),
+                "train_images": color + grayscale,
                 "val_images": 10000,
-                "color_number": int(color),
-                "gray_number": int(grayscale),
+                "color_number": color,
+                "gray_number": grayscale,
                 "num_channels": 3,
                 "fix": fix,
                 "split": False,
@@ -89,9 +89,9 @@ def get_metadata(
             {
                 "image_size": 32,
                 "num_classes": 10,
-                "train_images": int(num_train_baseline),
+                "train_images": num_train_baseline,
                 "val_images": 10000,
-                "color_number": int(num_train_baseline),
+                "color_number": num_train_baseline,
                 "gray_number": 0,
                 "num_channels": 3,
                 "fix": "none",

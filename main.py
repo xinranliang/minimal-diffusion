@@ -8,14 +8,16 @@ from tqdm import tqdm
 from easydict import EasyDict
 
 import torch
+from torchvision import datasets, transforms
 import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_mnist
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_mnist, sample_N_images_classifier
 import model.unets as unets
+from domain_classifier.cifar_imagenet import DomainClassifier
 import utils
 from metrics.color_gray import count_colorgray, compute_colorgray
 
@@ -69,13 +71,13 @@ def get_args():
     parser.add_argument("--fix", type=str, choices=["total", "color", "gray", "none", "half"], default="none", help="specify how to split training distribution")
 
     # color-gray domain
-    parser.add_argument("--color", required=False, help="ratio or number of training distribution to be turned into colored images")
-    parser.add_argument("--grayscale", required=False, help="ratio or number of training distribution to be turned into grayscale images")
+    parser.add_argument("--color", type=int, required=False, help="ratio or number of training distribution to be turned into colored images")
+    parser.add_argument("--grayscale", type=int, required=False, help="ratio or number of training distribution to be turned into grayscale images")
 
     # cifar10-imagenet domain
-    parser.add_argument("--num-cifar10", required=False, help="number of cifar10 images used for training")
-    parser.add_argument("--num-imagenet", required=False, help="number of imagenet images used for training")
-    parser.add_argument("--num-baseline", required=False, help="number of baseline images used for training, mixed from cifar10 and imagenet")
+    parser.add_argument("--num-cifar10", type=int, required=False, help="number of cifar10 images used for training")
+    parser.add_argument("--num-imagenet", type=int, required=False, help="number of imagenet images used for training")
+    parser.add_argument("--num-baseline", type=int, required=False, help="number of baseline images used for training, mixed from cifar10 and imagenet")
 
     # mnist flip left-right domain
     parser.add_argument("--flip-left", type=float, required=False, help="ratio of mnist images flipped to left")
@@ -98,6 +100,8 @@ def get_args():
     parser.add_argument("--pretrained-ckpt", type=str, help="Pretrained model ckpt directory")
     parser.add_argument("--ckpt-name", type=str, help="name of cpretrained ckpt for sampling in logging")
     parser.add_argument("--delete-keys", nargs="+", help="Pretrained model ckpt")
+    parser.add_argument("--domain-classifier", type=str, required=False, help="pretrained classifier to detect synthetic samples with certain attributes")
+
     parser.add_argument(
         "--sampling-only",
         action="store_true",
@@ -110,18 +114,9 @@ def get_args():
         default=50000,
         help="Number of images required to sample from the model",
     )
-    parser.add_argument(
-        "--sampling-color-only",
-        action="store_true",
-        default=False,
-        help="No training, just sample color images (will save them in --save-dir)",
-    )
-    parser.add_argument(
-        "--sampling-gray-only",
-        action="store_true",
-        default=False,
-        help="No training, just sample gray images (will save them in --save-dir)",
-    )
+    parser.add_argument("--sampling-color-only", action="store_true", default=False, help="No training, just sample color images (will save them in --save-dir)",)
+    parser.add_argument("--sampling-gray-only", action="store_true", default=False, help="No training, just sample gray images (will save them in --save-dir)",)
+    parser.add_argument("--sampling-cifar-only", action="store_true", default=False, help="No training, just sample images from CIFAR domain (will save them in --save-dir)",)
 
     # misc
     parser.add_argument("--date", type=str)
@@ -235,13 +230,32 @@ def main(args):
                     )
                     )
         elif args.fix == "half":
-            log_dir = os.path.join(
-                    args.save_dir,
-                    "half{}".format(args.color),
-                    "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
-                        args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+            if args.color == args.grayscale:
+                log_dir = os.path.join(
+                        args.save_dir,
+                        "half{}".format(args.color),
+                        "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                            args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                        )
+                )
+            else:
+                assert args.color == 0 or args.grayscale == 0
+                if args.color == 0:
+                    log_dir = os.path.join(
+                            args.save_dir,
+                            "half_gray{}".format(args.grayscale),
+                            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                            )
                     )
-            )
+                if args.grayscale == 0:
+                    log_dir = os.path.join(
+                            args.save_dir,
+                            "half_color{}".format(args.color),
+                            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                            )
+                    )
         else:
             raise NotImplementedError
     
@@ -490,6 +504,63 @@ def main(args):
             )
         print("Finish sampling gray images from pretrained checkpoint! Return")
         return
+    
+    if args.sampling_cifar_only:
+        classifier = DomainClassifier(
+            num_classes=2,
+            arch="resnet50",
+            pretrained=False,
+            learning_rate=1e-3,
+            weight_decay=1e-4,
+            device=args.device
+        )
+        if args.domain_classifier:
+            classifier.load(args.domain_classifier)
+            if args.local_rank == 0:
+                print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
+        classifier.eval()
+
+        transform_test = transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+        sampled_images, labels = sample_N_images_classifier(
+            args.num_sampled_images,
+            model,
+            diffusion,
+            classifier,
+            transform_test,
+            None,
+            args.sampling_steps,
+            args.batch_size,
+            metadata.num_channels,
+            metadata.image_size,
+            metadata.num_classes,
+            args,
+        )
+
+        if "ema" in args.ckpt_name:
+            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples_ema",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_cifar.npz",
+                ),
+                sampled_images,
+                labels,
+            )
+        else:
+            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
+            np.savez(
+                os.path.join(
+                    log_dir,
+                    "samples",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}_cifar.npz",
+                ),
+                sampled_images,
+                labels,
+            )
+
+        print("Finish sampling CIFAR images from pretrained checkpoint! Return")
+        return
 
     # Load dataset
     train_set = get_dataset(args.dataset, args.data_dir, metadata)
@@ -608,7 +679,7 @@ def main(args):
         cv2.imwrite(
             os.path.join(
                 sample_dir,
-                f"epoch_{epoch}.png",
+                "epoch_final.png",
             ),
             np.concatenate(sampled_images, axis=1)[:, :, ::-1],
         )
@@ -617,14 +688,14 @@ def main(args):
             model.state_dict(),
             os.path.join(
                 model_dir,
-                f"epoch_{epoch}.pth",
+                "epoch_final.pth",
             ),
         )
         torch.save(
             args.ema_dict,
             os.path.join(
                 model_dir,
-                f"epoch_{epoch}_ema_{args.ema_w}.pth",
+                f"epoch_final_ema_{args.ema_w}.pth",
             ),
         )
 

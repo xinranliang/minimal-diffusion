@@ -24,3 +24,9 @@ for lr in 0.01 0.005 0.001 0.0005 0.0001; do
         --ckpt-path ./logs/2023-04-08/mnist-subset/domain_classifier/bs256_lr${lr}_decay${wd}/ckpt/model_param_final.pth
     done;
 done
+
+CUDA_VISIBLE_DEVICES=0 python -m domain_classifier.mnist_flip \
+        --dataset mnist-subset --num-classes 7 --num-domains 2 --mode test-fake \
+        --batch-size 2048 --learning-rate 0.001 --weight-decay 0.0001 \
+        --num-gpus 1 --date 2023-04-08 \
+        --ckpt-path ./logs/2023-04-08/mnist-subset/domain_classifier/bs256_lr0.001_decay0.0001/ckpt/model_param_final.pth

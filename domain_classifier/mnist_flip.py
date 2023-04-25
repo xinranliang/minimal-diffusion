@@ -5,6 +5,7 @@ import numpy as np
 import random
 from PIL import Image
 import cv2
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn 
@@ -15,16 +16,15 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
 
-from dataset.utils import logger, ArraytoImage
+from dataset.utils import logger, ArrayToImageLabel
+import model.unets as unets
+from model.diffusion import GuassianDiffusion
 
 flip_classes = {
-    2: 0,
-    3: 1,
-    4: 2,
-    5: 3,
-    6: 4,
-    7: 5,
-    9: 6
+    2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 9: 6
+}
+flip_classes_inverse = {
+    0: 2, 1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 9
 }
 
 
@@ -163,6 +163,14 @@ class DomainClassifier(nn.Module):
         pred_acc = torch.sum(pred_y == y) / y.shape[0]
 
         return pred_loss, pred_acc
+    
+    def predict(self, x, c):
+        x, c = x.to(self.device), c.to(self.device)
+        pred_logits = self.forward(x, c)
+        # compute accuracy
+        pred_probs = self.softmax(pred_logits)
+        pred_y = torch.argmax(pred_probs, dim=-1)
+        return pred_y
     
     def update(self, x, c, y):
         pred_loss, pred_acc = self.error(x, c, y)
@@ -405,6 +413,117 @@ def test_real(args):
     return
 
 
+def test_fake(args):
+    if args.dataset == "mnist-subset":
+        # Creat model and diffusion process
+        myunet = unets.__dict__["UNetSmall"](
+            image_size=28,
+            in_channels=1,
+            out_channels=1,
+            num_classes=7,
+            prob_drop_cond=0.1
+        ).to(args.device)
+        if args.local_rank == 0:
+            print(
+                "We are assuming that model input/ouput pixel range is [-1, 1]. Please adhere to it."
+            )
+        mydiffusion = GuassianDiffusion(1000, args.device)
+        ckpt_list = [
+            "./logs/2023-04-08/mnist-subset/left0.5_right0.5/UNetSmall_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_256_dropprob_0.1/ckpt/epoch_99_ema_0.9995.pth",
+            # "./logs/2023-04-09/mnist-subset/left0.5_right0.5/UNetSmall_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_256_dropprob_0.1/ckpt/epoch_99_ema_0.9995.pth"
+        ]
+        for ckpt_path in ckpt_list:
+            print(f"Loading pretrained model from {ckpt_path}")
+            file_load = torch.load(ckpt_path, map_location=args.device)
+            myunet.load_state_dict(file_load)
+            print(f"Loaded pretrained model from {ckpt_path}")
+
+            samples, labels, num_samples = [], [], 0
+
+            with tqdm(total=len(flip_classes_inverse.keys())) as pbar:
+                for class_label in flip_classes_inverse.keys():
+                    # initialize noise
+                    xT = (
+                            torch.randn(10, 1, 28, 28)
+                            .float()
+                            .to(args.device)
+                        )
+                    # specify class label
+                    y = torch.zeros(size=(len(xT),), dtype=torch.int64).to(args.device)
+                    y.fill_(class_label)
+
+                    gen_images = mydiffusion.sample_from_reverse_process(
+                        myunet, xT, 250, {"y": y}, False, 0.0
+                    )
+                    labels.append(y.detach().cpu().numpy())
+                    samples.append(gen_images.detach().cpu().numpy())
+                    num_samples += len(xT)
+                    pbar.update(1)
+                    
+            samples = np.concatenate(samples).transpose(0, 2, 3, 1) # shape = num_samples x height x width x n_channel
+            samples = (127.5 * (samples + 1)).astype(np.uint8)
+            labels = np.concatenate(labels)
+
+            assert samples.shape[0] == labels.shape[0], "samples and labels must in same number"
+            for index in range(samples.shape[0]):
+                folder_path = os.path.join("./logs/2023-04-08/mnist-subset/domain_classifier/synthetic_testset", "class_{}".format(flip_classes_inverse[labels[index]]))
+                os.makedirs(folder_path, exist_ok=True)
+                cv2.imwrite(
+                    os.path.join(folder_path, "sample_{}.png".format(index)), samples[index]
+                )
+            
+            # set up dataset
+            transform_test = transforms.Compose(
+                    [
+                        # transforms.Grayscale(num_output_channels=1),
+                        transforms.RandomResizedCrop(
+                            28, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                        ),
+                        transforms.ToTensor(),
+                    ]
+            )
+            # domain_dataset = datasets.ImageFolder(
+                # root = "./logs/2023-04-08/mnist-subset/domain_classifier/synthetic_testset",
+                # transform = transform_test,
+                # target_transform = None
+            # )
+            domain_dataset = ArrayToImageLabel(
+                samples = samples,
+                labels = labels,
+                mode = "L",
+                transform = transform_test,
+                target_transform = None
+            )
+            domain_dataloader = DataLoader(
+                domain_dataset,
+                batch_size = 10,
+                shuffle = False,
+                num_workers = args.num_gpus * 4
+            )
+    
+    # set up model
+    model = DomainClassifier(
+        num_classes = 7,
+        num_domains = 2,
+        learning_rate = args.learning_rate,
+        weight_decay = args.weight_decay,
+        device = args.device
+    )
+    if args.num_gpus > 1:
+        model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
+    if args.ckpt_path:
+        model.load(args.ckpt_path)
+    model.eval()
+    
+    for image, label in iter(domain_dataloader):
+        with torch.no_grad():
+            syn_pred = model.predict(image, label)
+            print(label.detach().cpu().numpy())
+            print(syn_pred.detach().cpu().numpy())
+    
+    return
+
+
 def main():
     args = get_args()
 
@@ -445,6 +564,8 @@ def main():
         train(args)
     elif args.mode == "test-real":
         test_real(args)
+    elif args.mode == "test-fake":
+        test_fake(args)
     else:
         raise NotImplementedError
 

@@ -155,16 +155,24 @@ class DomainClassifier(nn.Module):
 
         return pred_loss, pred_acc
     
-    def pred_adapt(self, image, label):
-        image, label = image.to(self.device), label.to(self.device)
+    def pred_adapt(self, image, label=None):
+        if label is None:
+            image = image.to(self.device)
+        else:
+            image, label = image.to(self.device), label.to(self.device)
+
         pred_logits = self.forward(image)
         # compute accuracy
         pred_logits[:, 0] = pred_logits[:, 0] - torch.log(torch.tensor(50 / 260, dtype=torch.float, device=self.device))
         pred_logits[:, 1] = pred_logits[:, 1] - torch.log(torch.tensor(210 / 260, dtype=torch.float, device=self.device))
         pred_probs = self.softmax(pred_logits)
         pred_target = torch.argmax(pred_probs, dim=-1)
-        pred_acc = torch.sum(pred_target == label) / label.shape[0]
-        return pred_acc
+
+        if label is not None:
+            pred_acc = torch.sum(pred_target == label) / label.shape[0]
+            return pred_acc
+        else:
+            return pred_target
     
     def update(self, image, label):
         pred_loss, pred_acc = self.get_error(image, label)

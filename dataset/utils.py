@@ -149,3 +149,58 @@ class ArraytoImage(Dataset):
         
         return image, label, target # image, class label, cifar/imagenet domain
 
+
+class ArrayToImageLabel(Dataset):
+    def __init__(
+        self,
+        samples,
+        labels,
+        mode, # RGB or L-gray
+        transform,
+        target_transform
+    ):
+        super().__init__()
+
+        # convert from numpy array
+        self.samples = samples
+        if labels is not None:
+            self.labels = labels
+        else:
+            self.labels = None
+        # assert in valid form
+        if self.samples.min() >= 0 and self.samples.max() <= 1:
+            self.samples = (self.samples * 255).astype("uint8")
+        elif self.samples.min() >= -1 and self.samples.max() <= 1:
+            self.samples = (127.5 * (self.samples + 1)).astype("uint8")
+        else:
+            assert self.samples.min() >= 0 and self.samples.max() <= 255
+        
+        assert len(self.samples.shape) == 4, "Images must be a batch"
+        assert self.samples.shape[0] == self.labels.shape[0], "Number of images and labels must match"
+        self.num_items = self.samples.shape[0]
+
+        # transformation
+        self.transform = transform
+        self.target_transform = target_transform
+
+        # 3 channel or 1 channel
+        self.mode = mode
+
+    def __len__(self):
+        return self.num_items
+    
+    def __getitem__(self, index):
+        image = self.samples[index] # height x width x num_channels
+        if self.labels is not None:
+            label = self.labels[index]
+        image = Image.fromarray(np.squeeze(image), mode=self.mode)
+
+        if self.transform is not None:
+            image = self.transform(image)
+        if self.target_transform is not None:
+            label = self.target_transform(label)
+        
+        if self.labels is not None:
+            return image, label # image, class-condition label
+        else:
+            return image

@@ -129,18 +129,48 @@ def split_halfcolor_halfgray(date):
                 transforms.ToTensor(),
             ]
         )
-    numbers = [5000, 10000, 15000, 30000, 45000, 60000, 90000, 120000]
-    for num in numbers:
-        mydata = Mix_CIFAR10ImageNet(
-            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
-            transform=transform_train,
-            target_transform=None,
-            fix="half",
-            color_num=num,
-            gray_num=num,
-            date=date,
-            split=True
-        )
+    numbers = [10000, 20000, 30000, 45000, 60000, 90000, 120000]
+    mydata = datasets.ImageFolder(
+        root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/train",
+        transform=transform_train,
+        target_transform=None,
+    )
+    total = len(mydata)
+
+    for idx in range(len(numbers)):
+        if idx == 0:
+            color_index = np.random.choice(len(mydata), size=numbers[idx], replace=False)
+            gray_index = [no_idx for no_idx in range(len(mydata)) if no_idx not in color_index]
+            gray_index = np.array(gray_index, dtype=int)
+            gray_index = np.random.choice(gray_index, size=numbers[idx], replace=False)
+        
+        else:
+            # gradually increment from previous dataset
+            file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(numbers[idx - 1]))
+            with open(file_path, "rb") as f:
+                idx_dict = pickle.load(f)
+            
+            color_index_small = idx_dict["color_index"]
+            gray_index_small = idx_dict["gray_index"]
+
+            other_index = [no_idx for no_idx in range(len(mydata)) if no_idx not in color_index_small and no_idx not in gray_index_small]
+            assert len(color_index_small) == numbers[idx - 1]
+            assert len(gray_index_small) == numbers[idx - 1]
+            assert len(other_index) == len(mydata) - len(color_index_small) - len(gray_index_small), "index does not match" 
+
+            other_index = np.array(other_index, dtype=int)
+            other_index_select = np.random.choice(other_index, size = (numbers[idx] - numbers[idx - 1]) * 2, replace=False)
+            random.shuffle(other_index_select)
+            color_index_other, gray_index_other = np.split(other_index_select, 2)
+
+            color_index = np.concatenate([color_index_small, color_index_other], axis=0)
+            gray_index = np.concatenate([gray_index_small, gray_index_other], axis=0)
+        
+        idx_dict = {"color_index": color_index, "gray_index": gray_index}
+        file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(numbers[idx]))
+        with open(file_path, "wb") as f:
+            pickle.dump(idx_dict, f)
+    return
 
 def split_domain_classifier(train_split, test_split):
     full_length = 260000 # total 270000 and exclude 10000 cifar10-test
@@ -291,13 +321,21 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
                 random.shuffle(self.image_index)
             
             elif fix == "half":
-                file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(color_num))
+                if self.color_num == 0:
+                    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(gray_num))
+                if self.gray_num == 0:
+                    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(color_num))
                 with open(file_path, "rb") as f:
                     file_load = pickle.load(f)
                 print("Loading training samples index from file path {}".format(file_path))
 
                 self.color_index = file_load["color_index"]
                 self.gray_index = file_load["gray_index"]
+                # handle baseline experiments
+                if self.color_num == 0:
+                    self.color_index = []
+                if self.gray_num == 0:
+                    self.gray_index = []
                 assert len(self.color_index) == self.color_num
                 assert len(self.gray_index) == self.gray_num
 
