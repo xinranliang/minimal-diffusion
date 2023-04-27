@@ -325,6 +325,9 @@ class Mix_CIFAR10ImageNet(datasets.ImageFolder):
                     file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(gray_num))
                 if self.gray_num == 0:
                     file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(color_num))
+                if self.color_num > 0 and self.gray_num > 0:
+                    assert self.color_num == self.gray_num
+                    file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10-imagenet/index_split", date, "half{}_index.pkl".format(color_num))
                 with open(file_path, "rb") as f:
                     file_load = pickle.load(f)
                 print("Loading training samples index from file path {}".format(file_path))

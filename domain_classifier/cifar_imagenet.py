@@ -155,7 +155,7 @@ class DomainClassifier(nn.Module):
 
         return pred_loss, pred_acc
     
-    def pred_adapt(self, image, label=None):
+    def predict(self, image, label=None, adapt=False):
         if label is None:
             image = image.to(self.device)
         else:
@@ -163,8 +163,9 @@ class DomainClassifier(nn.Module):
 
         pred_logits = self.forward(image)
         # compute accuracy
-        pred_logits[:, 0] = pred_logits[:, 0] - torch.log(torch.tensor(50 / 260, dtype=torch.float, device=self.device))
-        pred_logits[:, 1] = pred_logits[:, 1] - torch.log(torch.tensor(210 / 260, dtype=torch.float, device=self.device))
+        if adapt:
+            pred_logits[:, 0] = pred_logits[:, 0] - torch.log(torch.tensor(50 / 260, dtype=torch.float, device=self.device))
+            pred_logits[:, 1] = pred_logits[:, 1] - torch.log(torch.tensor(210 / 260, dtype=torch.float, device=self.device))
         pred_probs = self.softmax(pred_logits)
         pred_target = torch.argmax(pred_probs, dim=-1)
 
@@ -193,7 +194,7 @@ def get_args():
     parser.add_argument("--dataset", type=str, help="specify what dataset source")
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
-    parser.add_argument("--mode", type=str, choices=["train", "test-real", "test-fake"], help="whether to train or test model")
+    parser.add_argument("--mode", type=str, choices=["train", "test-real", "test-fake", "test-gan"], help="whether to train or test model")
     parser.add_argument("--train-split", type=float, default=0.8, help="portion of dataset splitted to training")
     parser.add_argument("--test-split", type=float, default=0.2, help="portion of dataset splitted to evaluation")
 
@@ -415,10 +416,7 @@ def test_fake(args, adapt):
     for image, _, label in iter(domain_dataloader):
         with torch.no_grad():
             # label = torch.zeros((image.shape[0], ), dtype=torch.long)
-            if adapt:
-                syn_acc = model.pred_adapt(image, label)
-            else:
-                _, syn_acc = model.get_error(image, label)
+            syn_acc = model.predict(image, label, adapt=adapt)
             syn_accs.append(syn_acc.detach().cpu().numpy())
             num_syn += image.shape[0]
     synthetic_accuracy = np.array(syn_accs, dtype=float).mean()
@@ -427,6 +425,62 @@ def test_fake(args, adapt):
     else:
         print(f"Test set accuracy w/o adaptation: {synthetic_accuracy:.3f} over {num_syn} images.")
 
+    return
+
+
+def test_gan(args):
+    if args.dataset == "cifar10-imagenet":
+        data_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+            ]
+        )
+        domain_dataset = datasets.ImageFolder(
+            root = "/n/fs/xl-diffbia/projects/stylegan2-ada/logs/samples",
+            transform = data_transform,
+            target_transform = None
+        )
+        domain_dataloader = DataLoader(
+            domain_dataset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_gpus * 4,
+        )
+    model = DomainClassifier(
+        num_classes=args.num_domains,
+        arch=args.arch,
+        pretrained=args.pretrained,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        device=args.device
+    )
+    if args.num_gpus > 1:
+        model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
+    if args.ckpt_path:
+        model.load(args.ckpt_path)
+    model.eval()
+
+    syn_accs = []
+    num_syn = 0
+    for image, label in iter(domain_dataloader):
+        with torch.no_grad():
+            syn_acc = model.predict(image, label, adapt=False)
+            syn_accs.append(syn_acc.detach().cpu().numpy())
+            num_syn += image.shape[0]
+    synthetic_accuracy = np.array(syn_accs, dtype=float).mean()
+    print(f"Test set accuracy w/o adaptation: {synthetic_accuracy:.3f} over {num_syn} images.")
+
+    syn_accs = []
+    num_syn = 0
+    for image, label in iter(domain_dataloader):
+        with torch.no_grad():
+            syn_acc = model.predict(image, label, adapt=True)
+            syn_accs.append(syn_acc.detach().cpu().numpy())
+            num_syn += image.shape[0]
+    synthetic_accuracy = np.array(syn_accs, dtype=float).mean()
+    print(f"Test set accuracy w/ adaptation: {synthetic_accuracy:.3f} over {num_syn} images.")
+    
     return
 
 
@@ -475,6 +529,8 @@ def main():
     elif args.mode == "test-fake":
         test_fake(args, adapt=False)
         test_fake(args, adapt=True)
+    elif args.mode == "test-gan":
+        test_gan(args)
     else:
         raise NotImplementedError
 

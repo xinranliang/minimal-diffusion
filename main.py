@@ -15,9 +15,10 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_mnist, sample_N_images_classifier
+from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_classifier
 import model.unets as unets
-from domain_classifier.cifar_imagenet import DomainClassifier
+from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet
+from domain_classifier.mnist_flip import DomainClassifier as DC_mnist
 import utils
 from metrics.color_gray import count_colorgray, compute_colorgray
 
@@ -342,7 +343,7 @@ def main(args):
             elif "mnist" in args.dataset:
                 if args.sampling_only:
                     # sample first time
-                    sampled_images, labels = sample_N_images_mnist(
+                    sampled_images, labels = sample_N_images(
                         args.num_sampled_images,
                         model,
                         diffusion,
@@ -351,6 +352,7 @@ def main(args):
                         args.batch_size,
                         metadata.num_channels,
                         metadata.image_size,
+                        metadata.num_classes,
                         args,
                     )
                 else:
@@ -360,6 +362,57 @@ def main(args):
 
                     sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
                     labels = file_load['arr_1'] # empty if class_cond = False
+                
+                classifier = DC_mnist(
+                    num_classes = metadata.num_classes,
+                    num_domains = 2,
+                    learning_rate = 1e-3,
+                    weight_decay = 1e-4,
+                    device = args.device
+                )
+                if args.domain_classifier:
+                    classifier.load(args.domain_classifier)
+                    if args.local_rank == 0:
+                        print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
+                classifier.eval()
+
+                # count number of left-flipped and right-flipped synthetic samples
+                if args.local_rank == 0:
+                    print("Sample with guidance {} \n".format(w))
+
+                    transform_test = transforms.Compose(
+                            [
+                                # transforms.Grayscale(num_output_channels=1),
+                                transforms.RandomResizedCrop(
+                                    28, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                                ),
+                                transforms.ToTensor(),
+                            ]
+                    )
+                    domain_dataset = ArrayToImageLabel(
+                        samples = sampled_images,
+                        labels = labels,
+                        mode = "L",
+                        transform = transform_test,
+                        target_transform = None
+                    )
+                    domain_dataloader = DataLoader(
+                        domain_dataset,
+                        batch_size = args.batch_size,
+                        shuffle = False,
+                        num_workers = args.num_gpus * 4
+                    )
+
+                    num_left, num_right = 0, 0
+                    for image, label in iter(domain_dataloader):
+                        with torch.no_grad():
+                            syn_pred = model.predict(image, label)
+                            syn_pred = syn_pred.detach().cpu().numpy()
+                            num_left += sum(syn_pred == 0)
+                            num_right += sum(syn_pred == 1)
+
+                    print("Precent of regular synthetic digits: {:.3f}".format(num_left / args.num_sampled_images))
+                    print("Precent of regular synthetic digits: {:.3f}".format(num_right / args.num_sampled_images))
             
             if args.sampling_only:
                 if "ema" in args.ckpt_name:
@@ -506,7 +559,7 @@ def main(args):
         return
     
     if args.sampling_cifar_only:
-        classifier = DomainClassifier(
+        classifier = DC_cifar_imgnet(
             num_classes=2,
             arch="resnet50",
             pretrained=False,
