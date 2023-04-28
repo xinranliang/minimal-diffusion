@@ -15,6 +15,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
+from dataset.utils import ArrayToImageLabel
 from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_classifier
 import model.unets as unets
 from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet
@@ -400,13 +401,13 @@ def main(args):
                         domain_dataset,
                         batch_size = args.batch_size,
                         shuffle = False,
-                        num_workers = args.num_gpus * 4
+                        num_workers = ngpus * 4
                     )
 
                     num_left, num_right = 0, 0
                     for image, label in iter(domain_dataloader):
                         with torch.no_grad():
-                            syn_pred = model.predict(image, label)
+                            syn_pred = classifier.predict(image, label)
                             syn_pred = syn_pred.detach().cpu().numpy()
                             num_left += sum(syn_pred == 0)
                             num_right += sum(syn_pred == 1)
