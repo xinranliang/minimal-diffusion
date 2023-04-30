@@ -15,13 +15,14 @@ from cleanfid import fid
 from precision_recall import compute_precision_recall
 
 
-def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
+def process_real(dataset, resolution, num_images, num_channels=3, date="none", mode="none"):
     r"""
     Function to save real images train split into a specific folder, used for computing FID statistics
 
     Input:
     - dataset: name of dataset, by default using train split
     - resolution: resolution of images
+    - num_images: number of real/fake images used to compute metrics
     - num_channels: default RGB channels
 
     Output:
@@ -42,11 +43,19 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
         elif dataset == "mix-cifar10-imagenet":
             root_dir = "./datasets/cifar10-imagenet" # consistent with logging
             if mode == "color":
-                with open(os.path.join(root_dir, "index_split", date, "color15000_gray0_index.pkl"), "rb") as f:
-                    image_index = pickle.load(f)["color_index"]
+                if num_images == 15000:
+                    with open(os.path.join(root_dir, "index_split", date, "color15000_gray0_index.pkl"), "rb") as f:
+                        image_index = pickle.load(f)["color_index"]
+                elif num_images != 50000:
+                    with open(os.path.join(root_dir, "index_split", date, "half{}_index.pkl".format(num_images)), "rb") as f:
+                        image_index = pickle.load(f)["color_index"]
             elif mode == "gray":
-                with open(os.path.join(root_dir, "index_split", date, "gray15000_color0_index.pkl"), "rb") as f:
-                    image_index = pickle.load(f)["gray_index"]
+                if num_images == 15000:
+                    with open(os.path.join(root_dir, "index_split", date, "gray15000_color0_index.pkl"), "rb") as f:
+                        image_index = pickle.load(f)["gray_index"]
+                elif num_images != 50000:
+                    with open(os.path.join(root_dir, "index_split", date, "half{}_index.pkl".format(num_images)), "rb") as f:
+                        image_index = pickle.load(f)["gray_index"]
     
     if dataset == "cifar10":
         root_dir = os.path.join(root_dir, "cifar-10-batches-py")
@@ -100,9 +109,15 @@ def process_real(dataset, resolution, num_channels=3, date="none", mode="none"):
                 save_folder = os.path.join("./logs/mix_cifar10-imagenet_gray")
         else:
             if mode == "color":
-                save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_color")
+                if num_images == 15000:
+                    save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_color")
+                elif num_images != 50000:
+                    save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_color_num{}".format(num_images))
             elif mode == "gray":
-                save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_gray")
+                if num_images == 15000:
+                    save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_gray")
+                elif num_images != 50000:
+                    save_folder = os.path.join("./logs", args.date, "mix-cifar10-imagenet_gray_num{}".format(num_images))
         os.makedirs(save_folder, exist_ok=True)
 
         full_data = datasets.ImageFolder(
@@ -147,29 +162,38 @@ def main(args):
     real_path = None
     if args.save_real:
         if args.date == "none": # full 50k metrics
-            real_path = process_real(args.dataset, args.resolution, mode=args.real_mode)
+            real_path = process_real(args.dataset, args.resolution, args.num_samples, mode=args.real_mode)
         else:
-            real_path = process_real(args.dataset, args.resolution, date=args.date, mode=args.real_mode)
+            real_path = process_real(args.dataset, args.resolution, args.num_samples, date=args.date, mode=args.real_mode)
         return
     else: 
         if args.real_mode == "color":
             if args.date == "none": # full 50k metrics
                 real_path = f"./logs/{args.dataset}_color"
             else:
-                real_path = os.path.join("./logs", args.date, f"{args.dataset}_color")
+                if args.num_samples == 15000:
+                    real_path = os.path.join("./logs", args.date, f"{args.dataset}_color")
+                else:
+                    real_path = os.path.join("./logs", args.date, f"{args.dataset}_color_num{args.num_samples}")
                 os.makedirs(real_path, exist_ok=True)
         elif args.real_mode == "gray":
             if args.date == "none": # full 50k metrics
                 real_path = f"./logs/{args.dataset}_gray"
             else:
-                real_path = os.path.join("./logs", args.date, f"{args.dataset}_gray")
+                if args.num_samples == 15000:
+                    real_path = os.path.join("./logs", args.date, f"{args.dataset}_gray")
+                else:
+                    real_path = os.path.join("./logs", args.date, f"{args.dataset}_gray_num{args.num_samples}")
                 os.makedirs(real_path, exist_ok=True)
     
     # construct image folder
     if args.date == "none": # full 50k metrics
         array_to_image(args.fake, args.num_samples)
     else:
-        fake_path = os.path.join("./logs", args.date, "tmp")
+        if args.num_samples == 15000:
+            fake_path = os.path.join("./logs", args.date, "tmp")
+        else:
+            fake_path = os.path.join("./logs", args.date, "tmp_{}".format(args.num_samples))
         os.makedirs(fake_path, exist_ok=True)
         array_to_image(args.fake, args.num_samples, folder=fake_path)
 
