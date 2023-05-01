@@ -413,7 +413,7 @@ def main(args):
                             num_right += sum(syn_pred == 1)
 
                     print("Precent of regular synthetic digits: {:.3f}".format(num_left / args.num_sampled_images))
-                    print("Precent of regular synthetic digits: {:.3f}".format(num_right / args.num_sampled_images))
+                    print("Precent of flipped synthetic digits: {:.3f}".format(num_right / args.num_sampled_images))
             
             if args.sampling_only:
                 if "ema" in args.ckpt_name:

@@ -55,8 +55,8 @@ python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode l
 python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color --num-samples 50000 \
 --fake ./logs/2023-04-07/mix-cifar10-imagenet/baseline_num100000/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/baseline_mix100_cond_ema_num50000_cifar.npz
 
-# python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color --num-samples 50000 \
-# --fake ./logs/2023-04-07/mix-cifar10-imagenet/baseline_num125000/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/baseline_mix125_cond_ema_num50000_cifar.npz
+python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color --num-samples 50000 \
+--fake ./logs/2023-04-07/mix-cifar10-imagenet/baseline_num125000/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/baseline_mix125_cond_ema_num50000_cifar.npz
 
 python metrics-all/compute_metrics.py --dataset cifar10 --resolution 32 --mode legacy_tensorflow --batch-size 1000 --num-gpus 1 --real-mode color --num-samples 50000 \
 --fake ./logs/2023-04-07/mix-cifar10-imagenet/baseline_num150000/UNet_diffusionstep_1000_samplestep_250_condition_True_lr_0.0001_bs_5000_dropprob_0.1/samples_ema/baseline_mix150_cond_ema_num50000_cifar.npz
