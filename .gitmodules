@@ -1,0 +1,3 @@
+[submodule "domain_classifier/convnext"]
+	path = domain_classifier/convnext
+	url = https://github.com/facebookresearch/ConvNeXt.git
