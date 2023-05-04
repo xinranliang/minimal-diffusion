@@ -4,6 +4,10 @@ import random
 import argparse
 from PIL import Image
 import cv2
+from sklearn.metrics import confusion_matrix
+import seaborn as sn
+import pandas as pd
+import matplotlib.pyplot as plt
 
 import torch
 import torchvision
@@ -14,6 +18,19 @@ import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 
 from dataset.utils import logger, ArraytoImage
+
+CLASSES = (
+    "plane",
+    "car",
+    "bird",
+    "cat",
+    "deer",
+    "dog",
+    "frog",
+    "horse",
+    "ship",
+    "truck",
+)
 
 
 class SimpleClassifier(nn.Module):
@@ -79,6 +96,7 @@ class SimpleClassifier(nn.Module):
         return pred_loss, pred_acc
     
     def predict(self, x):
+        x = x.to(self.device)
         pred_logits = self.forward(x)
         pred_probs = self.softmax(pred_logits)
         pred_y = torch.argmax(pred_probs, dim=-1)
@@ -176,7 +194,7 @@ def train(args):
         device=args.device
     )
     if args.num_gpus > 1:
-        simple_model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
+        simple_model = DistributedDataParallel(simple_model, device_ids=[args.local_rank], output_device=args.local_rank)
     
     # set up logger
     ckpt_dir = os.path.join(args.log_dir, "ckpt")
@@ -198,9 +216,9 @@ def train(args):
             step += 1
         
         if args.local_rank == 0 and (epoch + 1) % 5 == 0:
-            model.save(ckpt_dir, epoch)
+            simple_model.save(ckpt_dir, epoch)
     if args.local_rank == 0:
-        model.save(ckpt_dir, epoch, final=True)
+        simple_model.save(ckpt_dir, epoch, final=True)
     
     # evaluate
     simple_model.eval()
@@ -213,6 +231,94 @@ def train(args):
     print(f"Final test accuracy at epoch {epoch + 1}: {final_accuracy:.3f}")
 
     return
+
+
+def get_confusion_matrix(args):
+    transform_test = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]
+    )
+    train_dataset = datasets.CIFAR10(
+        root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+        train=True,
+        transform=transform_test,
+        target_transform=None,
+        download=False
+    )
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_gpus * 4
+    )
+    test_dataset = datasets.CIFAR10(
+        root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+        train=False,
+        transform=transform_test,
+        target_transform=None,
+        download=False
+    )
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_gpus * 4
+    )
+
+    simple_model = SimpleClassifier(
+        learning_rate = args.learning_rate,
+        weight_decay = args.weight_decay,
+        device=args.device
+    )
+    if args.num_gpus > 1:
+        simple_model = DistributedDataParallel(simple_model, device_ids=[args.local_rank], output_device=args.local_rank)
+    if args.ckpt_path:
+        simple_model.load(args.ckpt_path)
+    simple_model.eval()
+
+    accs = []
+    preds, trues = [], []
+    num_train = 0
+    for image, label in iter(train_dataloader):
+        with torch.no_grad():
+            pred_y = simple_model.predict(image)
+            _, acc = simple_model.error(image, label)
+            # accuracy
+            accs.append(acc.detach().cpu().numpy())
+            # pred
+            preds.extend(pred_y.detach().cpu().numpy().tolist())
+            # true
+            trues.extend(label.detach().cpu().numpy().tolist())
+            num_train += label.shape[0]
+    accuracy = np.array(accs, dtype=float).mean()
+    print(f"Training set accuracy: {accuracy:.3f} over {num_train} images.")
+
+    accs = []
+    preds, trues = [], []
+    num_test = 0
+    for image, label in iter(test_dataloader):
+        with torch.no_grad():
+            pred_y = simple_model.predict(image)
+            _, acc = simple_model.error(image, label)
+            # accuracy
+            accs.append(acc.detach().cpu().numpy())
+            # pred
+            preds.extend(pred_y.detach().cpu().numpy().tolist())
+            # true
+            trues.extend(label.detach().cpu().numpy().tolist())
+            num_test += label.shape[0]
+    accuracy = np.array(accs, dtype=float).mean()
+    print(f"Test set accuracy: {accuracy:.3f} over {num_test} images.")
+
+    cm = confusion_matrix(trues, preds)
+    df_cm = pd.DataFrame(cm / np.sum(cm, axis=1)[:, None], index = [i for i in CLASSES], columns = [i for i in CLASSES])
+    plt.figure(figsize = (8, 8/1.6))
+    sn.heatmap(df_cm, annot=True)
+    args.log_dir = os.path.join(*args.ckpt_path.split("/")[:-2])
+    plt.savefig(f'{args.log_dir}/confusion_matrix.png', dpi=300, bbox_inches="tight")
+    plt.savefig(f'{args.log_dir}/confusion_matrix.pdf', dpi=300, bbox_inches="tight")
 
 
 def main():
@@ -241,6 +347,8 @@ def main():
     
     if args.mode == "train":
         train(args)
+    elif args.mode == "confusion-matrix":
+        get_confusion_matrix(args)
 
 
 if __name__ == "__main__":
