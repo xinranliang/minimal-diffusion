@@ -19,7 +19,7 @@ from dataset.utils import ArrayToImageLabel
 from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_classifier
 import model.unets as unets
 from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet
-from domain_classifier.mnist_flip import DomainClassifier as DC_mnist
+from domain_classifier.mnist_flip import DomainClassifier as DC_mnist, count_flip
 import utils
 from metrics.color_gray import count_colorgray, compute_colorgray
 
@@ -320,6 +320,7 @@ def main(args):
 
                     sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
                     labels = file_load['arr_1'] # empty if class_cond = False
+                    print("Loading samples and labels from {}".format(file_path))
 
                 # overall
                 colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
@@ -363,6 +364,7 @@ def main(args):
 
                     sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
                     labels = file_load['arr_1'] # empty if class_cond = False
+                    print("Loading samples and labels from {}".format(file_path))
                 
                 classifier = DC_mnist(
                     num_classes = metadata.num_classes,
@@ -404,16 +406,16 @@ def main(args):
                         num_workers = ngpus * 4
                     )
 
-                    num_left, num_right = 0, 0
-                    for image, label in iter(domain_dataloader):
-                        with torch.no_grad():
-                            syn_pred = classifier.predict(image, label)
-                            syn_pred = syn_pred.detach().cpu().numpy()
-                            num_left += sum(syn_pred == 0)
-                            num_right += sum(syn_pred == 1)
+                    # overall number
+                    overall_counts = count_flip(domain_dataloader, classifier, classwise=False)
+                    print("Precent of regular synthetic digits over all classes: {:.3f}".format(overall_counts["num_left"] / args.num_sampled_images))
+                    print("Precent of flipped synthetic digits over all classes: {:.3f}".format(overall_counts["num_right"] / args.num_sampled_images))
 
-                    print("Precent of regular synthetic digits: {:.3f}".format(num_left / args.num_sampled_images))
-                    print("Precent of flipped synthetic digits: {:.3f}".format(num_right / args.num_sampled_images))
+                    # group by classes
+                    classwise_counts = count_flip(domain_dataloader, classifier, classwise=True)
+                    assert args.num_sampled_images == np.sum(classwise_counts["num_samples"]), "number of total samples and sum of classwise counts do not match!"
+                    print("Precent of regular synthetic digits by classes: {}".format((classwise_counts["num_left"] / classwise_counts["num_samples"]).tolist()))
+                    print("Precent of flipped synthetic digits by classes: {}".format((classwise_counts["num_right"] / classwise_counts["num_samples"]).tolist()))
             
             if args.sampling_only:
                 if "ema" in args.ckpt_name:

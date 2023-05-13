@@ -6,6 +6,7 @@ import random
 from PIL import Image
 import cv2
 from tqdm import tqdm
+import collections
 
 import torch
 import torch.nn as nn 
@@ -26,6 +27,50 @@ flip_classes = {
 flip_classes_inverse = {
     0: 2, 1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 9
 }
+
+
+def count_flip(imagelabel_loader, classifier, classwise=False):
+    if not classwise:
+        num_left, num_right = 0, 0
+        for image, label in iter(imagelabel_loader):
+            with torch.no_grad():
+                syn_pred = classifier.predict(image, label)
+                syn_pred = syn_pred.detach().cpu().numpy()
+                num_left += sum(syn_pred == 0)
+                num_right += sum(syn_pred == 1)
+        return {"num_left": num_left, "num_right": num_right}
+
+    else:
+        # output: list of dictionary, one element for each class
+        num_left_classwise = [0 for _ in flip_classes_inverse.keys()]
+        num_right_classwise = [0 for _ in flip_classes_inverse.keys()]
+        num_samples_classwise = [0 for _ in flip_classes_inverse.keys()]
+        predictions = []
+        labels = []
+        # predict all domains and labels
+        for image, label in iter(imagelabel_loader):
+            with torch.no_grad():
+                syn_pred = classifier.predict(image, label)
+                syn_pred = syn_pred.detach().cpu().numpy()
+                label_arr = label.detach().cpu().numpy()
+                predictions.extend(syn_pred.tolist())
+                labels.extend(label_arr.tolist())
+        predictions = np.array(predictions, dtype=int)
+        labels = np.array(labels, dtype=int)
+
+        # count classwise
+        for class_index in flip_classes_inverse.keys():
+            curr_indices = np.where(labels == class_index)[0]
+            curr_preds = predictions[curr_indices]
+            num_samples_classwise[class_index] += len(curr_preds)
+            num_left_classwise[class_index] += sum(curr_preds == 0)
+            num_right_classwise[class_index] += sum(curr_preds == 1)
+
+        num_left_classwise = np.array(num_left_classwise, dtype=int)
+        num_right_classwise = np.array(num_right_classwise, dtype=int)
+        num_samples_classwise = np.array(num_samples_classwise, dtype=int)
+        
+        return {"num_left": num_left_classwise, "num_right": num_right_classwise, "num_samples": num_samples_classwise}
 
 
 class Domain_MNIST_Flip(datasets.MNIST):
