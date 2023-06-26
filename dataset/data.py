@@ -20,7 +20,7 @@ def get_metadata(
     fix_name="cifar10", other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
     num_train_baseline=None, # this is for combine 2 dataset source as 1 domain - baseline for above setting
     flip_left=None, flip_right=None, # this is for testing mnist dataset
-    front_ratio=None, back_ratio=None, # this is for grouping cifar samples into super classes
+    semantic_group=None, front_ratio=None, back_ratio=None, # this is for grouping cifar samples into super classes
 ):
     if name == "cifar10":
         if fix == "total":
@@ -138,7 +138,8 @@ def get_metadata(
                 "front_ratio": front_ratio,
                 "back_ratio": back_ratio,
                 "date": date,
-                "split": False
+                "split": False,
+                "split_type": semantic_group
             }
         )
     elif name == "celeba":
@@ -326,6 +327,7 @@ def get_dataset(name, data_dir, metadata):
             front_ratio = metadata.front_ratio,
             back_ratio = metadata.back_ratio,
             split = False,
+            split_type = metadata.split_type,
             date = metadata.date,
         )
 

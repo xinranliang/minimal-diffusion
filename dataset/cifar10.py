@@ -28,15 +28,27 @@ CLASSES = (
     "truck",
 )
 
-SUPER_CLASSES = {
-    0: [0, 8], # "airplane" + "ship"
-    1: [1, 9], # "automobile" + "truck"
-    2: [2, 6], # "bird" + "frog"
-    3: [3, 5], # "cat" + "dog"
-    4: [4, 7], # "deer" + "horse"
+# by confusion matrix, classes that are similarly classified in semantic categories
+SIMILAR_CLASSES = {
+    0: [0, 2], # "airplane" + "bird"
+    1: [1, 8], # "car" + "ship"
+    2: [3, 5], # "cat" + "dog"
+    3: [4, 6], # "deer" + "frog"
+    4: [7, 9], # "horse" + "truck"
 }
-SUPER_CLASSES_INVERSE = {
-    0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 3, 6: 2, 7: 4, 8: 0, 9: 1
+SIMILAR_CLASSES_INVERSE = {
+    0: 0, 1: 1, 2: 0, 3: 2, 4: 3, 5: 2, 6: 3, 7: 4, 8: 1, 9: 4
+}
+# by confusion matrix, classes that are distinctively classified in semantic categories
+DISTINCT_CLASSES = {
+    0: [0, 4], # "airplane" + "deer"
+    1: [1, 3], # "car" + "cat"
+    2: [2, 9], # "bird" + "truck"
+    3: [5, 8], # "dog" + "ship"
+    4: [6, 7], # "frog" + "horse"
+}
+DISTINCT_CLASSES_INVERSE = {
+    0: 0, 1: 1, 2: 2, 3: 1, 4: 0, 5: 3, 6: 4, 7: 4, 8: 3, 9: 2
 }
 
 
@@ -152,6 +164,19 @@ def split_by_class(date):
             target_transform=None,
             download=False,
             split=True,
+            split_type="similar",
+            date=date,
+            front_ratio=front_ratio,
+            back_ratio=back_ratio
+        )
+        mydata = CIFAR_SuperClass(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+            train=True,
+            transform=transform_train,
+            target_transform=None,
+            download=False,
+            split=True,
+            split_type="distinct",
             date=date,
             front_ratio=front_ratio,
             back_ratio=back_ratio
@@ -174,10 +199,27 @@ def check_by_class(date):
             target_transform=None,
             download=False,
             split=False,
+            split_type="similar",
             date=date,
             front_ratio=front_ratio,
             back_ratio=back_ratio
         )
+
+        input("press enter to continue")
+        mydata = CIFAR_SuperClass(
+            root="/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/cifar10",
+            train=True,
+            transform=transform_train,
+            target_transform=None,
+            download=False,
+            split=False,
+            split_type="distinct",
+            date=date,
+            front_ratio=front_ratio,
+            back_ratio=back_ratio
+        )
+
+        input("press enter to continue")
 
 
 class CIFAR10_ColorGray(datasets.CIFAR10):
@@ -460,13 +502,22 @@ class CIFAR_SuperClass(datasets.CIFAR10):
         target_transform,
         train,
         download,
-        front_ratio, # portion of samples from first half of classes [0-4]
-        back_ratio, # portion of samples from first half of classes [5-9]
+        front_ratio, # portion of samples from half of classes
+        back_ratio, # portion of samples from last half of classes
         split,
+        split_type,
         date
     ):
         super().__init__(root, train, transform, target_transform, download)
 
+        if split_type == "similar":
+            self.classes_map = SIMILAR_CLASSES
+            self.classes_map_inverse = SIMILAR_CLASSES_INVERSE
+        elif split_type == "distinct":
+            self.classes_map = DISTINCT_CLASSES
+            self.classes_map_inverse = DISTINCT_CLASSES_INVERSE
+        else:
+            raise NotImplementedError
         self.front_number = int(front_ratio * 5000)
         self.back_number = int(back_ratio * 5000)
 
@@ -482,19 +533,20 @@ class CIFAR_SuperClass(datasets.CIFAR10):
             self.part_by_class = {
                 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []
             }
-            for label in range(0, 5):
+            for label in [self.classes_map[k][0] for k in self.classes_map.keys()]:
                 tmp_arr = np.array(self.full_by_class[label], dtype=int)
                 self.part_by_class[label] = np.random.choice(tmp_arr, self.front_number, replace=False)
-            for label in range(5, 10):
+            for label in [self.classes_map[k][1] for k in self.classes_map.keys()]:
                 tmp_arr = np.array(self.full_by_class[label], dtype=int)
                 self.part_by_class[label] = np.random.choice(tmp_arr, self.back_number, replace=False)
             
-            file_path = os.path.join(root, "class_split", date, "front{}_back{}_index.pkl".format(front_ratio, back_ratio))
+            os.makedirs(os.path.join(root, "class_split", split_type, date), exist_ok=True)
+            file_path = os.path.join(root, "class_split", split_type, date, "front{}_back{}_index.pkl".format(front_ratio, back_ratio))
             with open(file_path, "wb") as f:
                 pickle.dump(self.part_by_class, f)
         
         else:
-            file_path = os.path.join(root, "class_split", date, "front{}_back{}_index.pkl".format(front_ratio, back_ratio))
+            file_path = os.path.join(root, "class_split", split_type, date, "front{}_back{}_index.pkl".format(front_ratio, back_ratio))
             with open(file_path, "rb") as f:
                 file_load = pickle.load(f)
             print("Loading front/back index by class from file path {}".format(file_path))
@@ -503,6 +555,7 @@ class CIFAR_SuperClass(datasets.CIFAR10):
 
             self.match_list = []
             for label in range(10):
+                # print("original class label {} has number of samples {}".format(label, len(self.part_by_class[label].tolist())))
                 self.match_list.extend(self.part_by_class[label].tolist())
             random.shuffle(self.match_list)
             assert len(self.match_list) == 25000, "there should be 25k items in splitted subset"
@@ -515,7 +568,7 @@ class CIFAR_SuperClass(datasets.CIFAR10):
     def __getitem__(self, index):
         match_index = self.match_list[index]
         image, target = super().__getitem__(match_index)
-        target = SUPER_CLASSES_INVERSE[target]
+        target = self.classes_map_inverse[target]
         return image, target
         
     
@@ -525,8 +578,8 @@ if __name__ == "__main__":
     # check_cifar10_index()
     # generate_fixgroup_cifar10()
     # check_fixgroup_cifar10()
-    # split_by_class(date="2023-04-20")
-    # split_by_class(date="2023-04-21")
-    check_by_class(date="2023-04-20")
-    check_by_class(date="2023-04-21")
+    # split_by_class(date="2023-06-25")
+    # split_by_class(date="2023-06-26")
+    check_by_class(date="2023-06-25")
+    check_by_class(date="2023-06-26")
     

@@ -86,6 +86,7 @@ def get_args():
     parser.add_argument("--flip-right", type=float, required=False, help="ratio of mnist images flipped to right")
 
     # cifar superclass domain
+    parser.add_argument("--semantic-group", type=str, required=False, choices=["similar", "distinct"], help="how to group classes from semantic domains")
     parser.add_argument("--front-ratio", type=float, required=False, help="ratio of classes belong to first 5 indices")
     parser.add_argument("--back-ratio", type=float, required=False, help="ratio of classes belong to last 5 indices")
 
@@ -142,7 +143,7 @@ def main(args):
         fix=args.fix, color=args.color, grayscale=args.grayscale,
         fix_name="cifar10", other_name="imagenet", fix_num=args.num_cifar10, other_num=args.num_imagenet, num_train_baseline=args.num_baseline,
         flip_left=args.flip_left, flip_right=args.flip_right,
-        front_ratio=args.front_ratio, back_ratio=args.back_ratio
+        semantic_group=args.semantic_group, front_ratio=args.front_ratio, back_ratio=args.back_ratio
     )
 
     # distribute data parallel
@@ -273,6 +274,7 @@ def main(args):
     elif "cifar-super" in args.dataset:
         log_dir = os.path.join(
             args.save_dir,
+            "group_{}".format(args.semantic_group),
             "front{}_back{}".format(args.front_ratio, args.back_ratio),
             "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
                 args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
