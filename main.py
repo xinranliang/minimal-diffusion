@@ -419,6 +419,31 @@ def main(args):
                     print("Precent of regular synthetic digits by classes: {}".format((classwise_counts["num_left"] / classwise_counts["num_samples"]).tolist()))
                     print("Precent of flipped synthetic digits by classes: {}".format((classwise_counts["num_right"] / classwise_counts["num_samples"]).tolist()))
             
+            elif "cifar-superclass" in args.dataset:
+                if args.sampling_only:
+                    # sample first time
+                    sampled_images, labels = sample_N_images(
+                        args.num_sampled_images,
+                        model,
+                        diffusion,
+                        None,
+                        args.sampling_steps,
+                        args.batch_size,
+                        metadata.num_channels,
+                        metadata.image_size,
+                        metadata.num_classes,
+                        args,
+                    )
+                
+                else:
+                    # otherwise load previous samples
+                    file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                    file_load = np.load(file_path, allow_pickle=True)
+
+                    sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                    labels = file_load['arr_1'] # empty if class_cond = False
+                    print("Loading samples and labels from {}".format(file_path))
+            
             if args.sampling_only:
                 if "ema" in args.ckpt_name:
                     os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
