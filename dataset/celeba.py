@@ -24,15 +24,17 @@ gender_independent_attrs = ["Bangs", "Black_Hair", "Blond_Hair", "Brown_Hair", "
 gender_dependent_attrs = ["Arched_Eyebrows", "Attractive", "Bushy_Eyebrows", "Pointy_Nose", "Receding_Hairline", "Young"]
 all_attrs = sorted(gender_dependent_attrs + gender_independent_attrs)
 
+my_attrs = ["Attractive", "Mouth_Slightly_Open"]
+
 class CelebA_AttrCond(datasets.CelebA):
     def __init__(
         self,
-        root,
         split,
         target_type,
-        my_attrs,
         transform,
         target_transform=None,
+        my_attrs=my_attrs,
+        root=root_path,
         download=False
     ):
         super().__init__(root, split, target_type, transform, target_transform, download)

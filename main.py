@@ -16,7 +16,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset.data import get_metadata, get_dataset
 from dataset.utils import ArrayToImageLabel
-from model.diffusion import GuassianDiffusion, train_one_epoch, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_classifier
+from model.diffusion import GuassianDiffusion, train_one_epoch, train_one_epoch_gender, sample_N_images, sample_N_images_nodist, sample_color_images, sample_gray_images, sample_N_images_cond, sample_N_images_classifier
 import model.unets as unets
 from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet
 from domain_classifier.mnist_flip import DomainClassifier as DC_mnist, count_flip
@@ -90,6 +90,10 @@ def get_args():
     parser.add_argument("--front-ratio", type=float, required=False, help="ratio of classes belong to first 5 indices")
     parser.add_argument("--back-ratio", type=float, required=False, help="ratio of classes belong to last 5 indices")
 
+    # celeba/fairface gender domain
+    parser.add_argument("--female-ratio", type=float, required=False, help="ratio of female images per conditioning class")
+    parser.add_argument("--male-ratio", type=float, required=False, help="ratio of male images per conditioning class")
+
     # optimizer
     parser.add_argument(
         "--batch-size", type=int, default=128, help="batch-size per gpu"
@@ -143,7 +147,8 @@ def main(args):
         fix=args.fix, color=args.color, grayscale=args.grayscale,
         fix_name="cifar10", other_name="imagenet", fix_num=args.num_cifar10, other_num=args.num_imagenet, num_train_baseline=args.num_baseline,
         flip_left=args.flip_left, flip_right=args.flip_right,
-        semantic_group=args.semantic_group, front_ratio=args.front_ratio, back_ratio=args.back_ratio
+        semantic_group=args.semantic_group, front_ratio=args.front_ratio, back_ratio=args.back_ratio,
+        female_ratio=args.female_ratio, male_ratio=args.male_ratio,
     )
 
     # distribute data parallel
@@ -280,6 +285,14 @@ def main(args):
                 args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
                 )
         ) 
+    elif "celeba" in args.dataset or "fairface" in args.dataset:
+        log_dir = os.path.join(
+            args.save_dir,
+            "female{}_male{}".format(args.female_ratio, args.male_ratio),
+            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                )
+        )
     os.makedirs(log_dir, exist_ok=True)
 
     # threshold
@@ -677,7 +690,10 @@ def main(args):
     for epoch in range(args.epochs):
         if sampler is not None:
             sampler.set_epoch(epoch)
-        train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
+        if args.dataset in ["celeba", "fairface"]:
+            train_one_epoch_gender(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
+        else:
+            train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
 
         # sample during training
         if epoch > 0 and epoch % args.ckpt_sample_freq == 0:

@@ -8,7 +8,8 @@ from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
 from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup, CIFAR_SuperClass
-from dataset.celeba import CelebA_Custom
+from dataset.celeba import CelebA_AttrCond
+from dataset.fairface import FairFace_Gender
 from dataset.mix_cifar10_imagenet import Mix_CIFAR10ImageNet
 from dataset.cifar10_other import CIFAR10_Other
 from dataset.mnist import MNIST_FLIP
@@ -21,6 +22,7 @@ def get_metadata(
     num_train_baseline=None, # this is for combine 2 dataset source as 1 domain - baseline for above setting
     flip_left=None, flip_right=None, # this is for testing mnist dataset
     semantic_group=None, front_ratio=None, back_ratio=None, # this is for grouping cifar samples into super classes
+    female_ratio=None, male_ratio=None, # this is for gender domain in celeba and fairface dataset
 ):
     if name == "cifar10":
         if fix == "total":
@@ -147,6 +149,9 @@ def get_metadata(
             {
                 "image_size": 64,
                 "num_attributes": 40,
+                "num_classes": 8,
+                "female_ratio": female_ratio,
+                "male_ratio": male_ratio,
                 "train_images": 202599,
                 "val_images": 0,
                 "num_channels": 3,
@@ -159,6 +164,19 @@ def get_metadata(
                 "num_attributes": 40,
                 "train_images": 30000,
                 "val_images": 0,
+                "num_channels": 3,
+            }
+        )
+    elif name == "fairface":
+        metadata = EasyDict(
+            {
+                "image_size": 64,
+                "num_classes": 6,
+                "female_ratio": female_ratio,
+                "male_ratio": male_ratio,
+                "date": date,
+                "train_images": 30000,
+                "val_images": 9745,
                 "num_channels": 3,
             }
         )
@@ -335,14 +353,14 @@ def get_dataset(name, data_dir, metadata):
         # celebA has a large number of images, avoiding randomcropping.
         transform_train = transforms.Compose(
             [
-                transforms.Resize(64),
-                transforms.CenterCrop(64),
+                transforms.Resize(metadata.image_size),
+                transforms.CenterCrop(metadata.image_size),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
             ]
         )
-        train_set = CelebA_Custom(
-            root=os.path.join(data_dir, "celebA"),
+        train_set = CelebA_AttrCond(
+            split="train",
             target_type="attr",
             transform=transform_train,
         )
@@ -359,6 +377,21 @@ def get_dataset(name, data_dir, metadata):
             target_type = "attr",
             transform=transform_train,
             download=True
+        )
+    elif name == "fairface":
+        trainsform_train = transforms.Compose(
+            [
+                transforms.Resize(metadata.image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor()
+            ]
+        )
+        train_set = FairFace_Gender(
+            split="train", 
+            transform=trainsform_train, 
+            f_ratio=metadata.female_ratio, 
+            m_ratio=metadata.male_ratio, 
+            date=metadata.date
         )
     else:
         raise ValueError(f"{name} dataset nor supported!")

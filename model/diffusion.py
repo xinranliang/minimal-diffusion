@@ -209,6 +209,48 @@ def train_one_epoch(
             logger.log(loss.item(), len(dataloader) * epoch + step)
 
 
+def train_one_epoch_gender(
+    model,
+    dataloader,
+    diffusion,
+    optimizer,
+    logger,
+    lrs,
+    args,
+    epoch
+):
+    model.train()
+    for step, (images, labels, domains) in enumerate(dataloader):
+        assert (images.max().item() <= 1) and (0 <= images.min().item())
+
+        # must use [-1, 1] pixel range for images
+        images, labels = (
+            2 * images.to(args.device) - 1,
+            labels.to(args.device) if args.class_cond else None,
+        )
+        t = torch.randint(diffusion.timesteps, (len(images),), dtype=torch.int64).to(
+            args.device
+        )
+        xt, eps = diffusion.sample_from_forward_process(images, t)
+        pred_eps = model(xt, t, y=labels, mode="train")
+
+        loss = ((pred_eps - eps) ** 2).mean()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if lrs is not None:
+            lrs.step()
+
+        # update ema_dict
+        if args.local_rank == 0:
+            new_dict = model.state_dict()
+            for (k, v) in args.ema_dict.items():
+                args.ema_dict[k] = (
+                    args.ema_w * args.ema_dict[k] + (1 - args.ema_w) * new_dict[k]
+                )
+            logger.log(loss.item(), len(dataloader) * epoch + step)
+
+
 # sample code
 def sample_N_images(
     N,

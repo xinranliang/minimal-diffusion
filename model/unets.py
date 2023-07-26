@@ -612,13 +612,6 @@ class UNetModel(nn.Module):
             # class conditional diffusion process that allows classifier-free guidance
             self.label_emb = nn.Embedding(num_classes + 1, time_embed_dim)
             # self.label_emb_null = nn.Parameter(th.randn(time_embed_dim))
-            
-            class_embed_dim = model_channels * class_emb_factor
-            self.class_embed = nn.Sequential(
-                linear(model_channels, class_embed_dim),
-                nn.SiLU(),
-                linear(class_embed_dim, class_embed_dim),
-            )
 
         ch = input_ch = int(channel_mult[0] * model_channels)
         self.input_blocks = nn.ModuleList(
@@ -800,10 +793,10 @@ class UNetModel(nn.Module):
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)
             if y_cond:
-                emb = emb + self.class_embed(self.label_emb(y))
+                emb = emb + self.label_emb(y)
             else:
-                # null_input = th.zeros([y.shape[0], ], dtype=th.long).cuda()
-                emb = emb + self.class_embed(self.label_emb(self.num_classes))
+                null_input = th.full(y.shape, self.num_classes, dtype=th.long).cuda()
+                emb = emb + self.label_emb(null_input)
         h = x.type(self.dtype)
         for module in self.input_blocks:
             h = module(h, emb)
@@ -835,14 +828,14 @@ class UNetModel(nn.Module):
         # with dropout prob
         if self.null_cond_prob > 0.0:
             keep_mask = prob_mask_shapelike((x.shape[0], ), 1 - self.null_cond_prob)
-            # null_input = th.zeros([y.shape[0], ], dtype=th.long).cuda()
-            null_class_emb = self.label_emb(self.num_classes) # batch_size x emb_dim
+            null_input = th.full(y.shape, self.num_classes, dtype=th.long).cuda()
+            null_class_emb = self.label_emb(null_input) # batch_size x emb_dim
             class_emb = th.where(keep_mask.reshape(-1, 1), class_emb, null_class_emb)
         
         hs = []
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
         assert y.shape == (x.shape[0],)
-        emb = emb + self.class_embed(class_emb)
+        emb = emb + class_emb
         h = x.type(self.dtype)
         for module in self.input_blocks:
             h = module(h, emb)

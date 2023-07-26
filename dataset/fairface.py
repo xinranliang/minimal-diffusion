@@ -33,22 +33,22 @@ def split_gender(date):
     trainsform_train = transforms.Compose(
             [
                 transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # normalized by imagenet mean std
+                transforms.ToTensor()
             ]
         )
     # full base
-    myff = FairFace_Gender(root_path, "train", trainsform_train, 1.0, 1.0, True, date)
+    myff = FairFace_Gender("train", trainsform_train, 1.0, 1.0, init=True, date=date)
     for f_ratio, m_ratio in zip([0.9, 0.7, 0.5, 0.3, 0.1], [0.1, 0.3, 0.5, 0.7, 0.9]):
-        myff = FairFace_Gender(root_path, "train", trainsform_train, f_ratio, m_ratio, True, date)
+        myff = FairFace_Gender("train", trainsform_train, f_ratio, m_ratio, init=True, date=date)
     for f_ratio, m_ratio in zip([0.9, 0.7, 0.5, 0.3, 0.1], [0.1, 0.3, 0.5, 0.7, 0.9]):
-        myff = FairFace_Gender(root_path, "train", trainsform_train, f_ratio, m_ratio, False, date)
+        myff = FairFace_Gender("train", trainsform_train, f_ratio, m_ratio, init=False, date=date)
         # check duplicate
         assert len(myff.part_index) == len(set(myff.part_index)), "there are duplicate items in index!"
 
 class FairFace_Gender(Dataset):
-    def __init__(self, root, split, transform, f_ratio, m_ratio, init=False, date=None):
+    def __init__(self, split, transform, f_ratio, m_ratio, root=root_path, init=False, date=None):
         super().__init__()
+        self.split = split
         self.transform = transform
 
         self.root_path = root
@@ -85,6 +85,7 @@ class FairFace_Gender(Dataset):
                         if init and f_ratio == 1.0 and m_ratio == 1.0:
                             self.full_index[RACE[row[race_idx]]][GENDER[row[gender_idx]]].append(curr_index)
                         curr_index += 1
+
             f.close()
 
         elif split == "val":
@@ -145,7 +146,12 @@ class FairFace_Gender(Dataset):
             assert len(self.part_index) == BASE_NUM * len(RACE) * len(GENDER) // 2
     
     def __len__(self):
-        return BASE_NUM * len(RACE) * len(GENDER) // 2
+        if self.split == "train":
+            return BASE_NUM * len(RACE) * len(GENDER) // 2
+        elif self.split == "val":
+            return len(self.image_paths)
+        else:
+            raise ValueError("invalid dataset split")
     
     def __getitem__(self, index):
         # get true index
