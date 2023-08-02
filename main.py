@@ -53,18 +53,11 @@ def get_args():
         help="Sampling using DDIM update step",
     )
     parser.add_argument(
-        "--classifier-free-w",
-        type=float,
-        default=0.0,
-        help="Weight of classfiier-free guidance in sampling process",
-    )
-    parser.add_argument(
         "--class-cond-dropout",
         type=float,
         default=0.0,
         help="Probability of droping class labels in training"
     )
-    parser.add_argument("--guidance", action="store_true", help="whether to check effect of guidance by trying out different w values")
 
     # dataset
     parser.add_argument("--dataset", type=str)
@@ -77,8 +70,8 @@ def get_args():
     parser.add_argument("--grayscale", type=int, required=False, help="ratio or number of training distribution to be turned into grayscale images")
 
     # cifar10-imagenet domain
-    parser.add_argument("--num-cifar10", type=int, required=False, help="number of cifar10 images used for training")
-    parser.add_argument("--num-imagenet", type=int, required=False, help="number of imagenet images used for training")
+    parser.add_argument("--num-cifar", type=float, required=False, help="number of cifar10 images used for training")
+    parser.add_argument("--num-imagenet", type=float, required=False, help="number of imagenet images used for training")
     parser.add_argument("--num-baseline", type=int, required=False, help="number of baseline images used for training, mixed from cifar10 and imagenet")
 
     # mnist flip left-right domain
@@ -121,10 +114,7 @@ def get_args():
         default=50000,
         help="Number of images required to sample from the model",
     )
-    parser.add_argument("--sampling-color-only", action="store_true", default=False, help="No training, just sample color images (will save them in --save-dir)",)
-    parser.add_argument("--sampling-gray-only", action="store_true", default=False, help="No training, just sample gray images (will save them in --save-dir)",)
-    parser.add_argument("--sampling-cifar-only", action="store_true", default=False, help="No training, just sample images from CIFAR domain (will save them in --save-dir)",)
-
+    
     # misc
     parser.add_argument("--date", type=str)
     parser.add_argument("--save-dir", type=str, default="./trained_models/")
@@ -145,7 +135,7 @@ def main(args):
     metadata = get_metadata(
         name=args.dataset, date=args.date,
         fix=args.fix, color=args.color, grayscale=args.grayscale,
-        fix_name="cifar10", other_name="imagenet", fix_num=args.num_cifar10, other_num=args.num_imagenet, num_train_baseline=args.num_baseline,
+        num_cifar=args.num_cifar, num_imagenet=args.num_imagenet, num_train_baseline=args.num_baseline,
         flip_left=args.flip_left, flip_right=args.flip_right,
         semantic_group=args.semantic_group, front_ratio=args.front_ratio, back_ratio=args.back_ratio,
         female_ratio=args.female_ratio, male_ratio=args.male_ratio,
@@ -285,7 +275,17 @@ def main(args):
                 args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
                 )
         ) 
-    elif "celeba" in args.dataset or "fairface" in args.dataset:
+    
+    elif "cifar-imagenet" in args.dataset:
+        log_dir = os.path.join(
+            args.save_dir, 
+            "cifar{}_imagenet{}".format(args.num_cifar, args.num_imagenet),
+            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
+                )
+        )
+
+    elif ("celeba" in args.dataset or "fairface" in args.dataset) and args.class_cond:
         log_dir = os.path.join(
             args.save_dir,
             "female{}_male{}".format(args.female_ratio, args.male_ratio),
@@ -293,195 +293,14 @@ def main(args):
                 args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
                 )
         )
-    os.makedirs(log_dir, exist_ok=True)
-
-    # threshold
-    args.threshold = {}
-    if args.dataset == "cifar10":
-        args.threshold["norm_val"] = 0.006
-        args.threshold["pixel_val"] = 0.74
-    elif args.dataset == "mix-cifar10-imagenet":
-        args.threshold["norm_val"] = 0.003
-        args.threshold["pixel_val"] = 0.86
-
-    if args.guidance:
-        if args.local_rank == 0:
-            print("Checkpoint: {} \n".format(args.ckpt_name))
-        guidance_w = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]
-
-        for w in guidance_w:
-            args.classifier_free_w = w 
-
-            # color/gray domain datasets: cifar10 or mix-cifar10-imagenet or cifar10-imagenet
-            if "cifar10" in args.dataset:
-                if args.sampling_only:
-                    # sample first time
-                    sampled_images, labels = sample_N_images(
-                        args.num_sampled_images,
-                        model,
-                        diffusion,
-                        None,
-                        args.sampling_steps,
-                        args.batch_size,
-                        metadata.num_channels,
-                        metadata.image_size,
-                        metadata.num_classes,
-                        args,
-                    )
-                else:
-                    # otherwise load previous samples
-                    file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
-                    file_load = np.load(file_path, allow_pickle=True)
-
-                    sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
-                    labels = file_load['arr_1'] # empty if class_cond = False
-                    print("Loading samples and labels from {}".format(file_path))
-
-                # overall
-                colorgray_dict = count_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
-                colorgray_value = compute_colorgray(sampled_images, threshold=args.threshold["pixel_val"])
-                # class-wise
-                if args.class_cond:
-                    colorgray_dict_class = count_colorgray(sampled_images, args.threshold["pixel_val"], labels)
-                    colorgray_value_class = compute_colorgray(sampled_images, labels)
-
-                if args.local_rank == 0:
-                    print("Sample with guidance {} \n".format(w))
-                    print("Number of color: {} \n".format(colorgray_dict["num_color"]))
-                    print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
-                    print("Mean value of channel std: {} \n".format(colorgray_value))
-
-                    print("Sample with guidance {} \n".format(w))
-                    print("Percentage of color by class: {} \n".format(colorgray_dict_class["ratio_color_classwise"]))
-                    print("Percentage of gray by class: {} \n".format(colorgray_dict_class["ratio_gray_classwise"]))
-                    print("Mean value of channel std by class: {} \n".format(colorgray_value_class))
-            
-            # left/right horizontal flip domain dataset: mnist
-            elif "mnist" in args.dataset:
-                if args.sampling_only:
-                    # sample first time
-                    sampled_images, labels = sample_N_images(
-                        args.num_sampled_images,
-                        model,
-                        diffusion,
-                        None,
-                        args.sampling_steps,
-                        args.batch_size,
-                        metadata.num_channels,
-                        metadata.image_size,
-                        metadata.num_classes,
-                        args,
-                    )
-                else:
-                    # otherwise load previous samples
-                    file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
-                    file_load = np.load(file_path, allow_pickle=True)
-
-                    sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
-                    labels = file_load['arr_1'] # empty if class_cond = False
-                    print("Loading samples and labels from {}".format(file_path))
-                
-                classifier = DC_mnist(
-                    num_classes = metadata.num_classes,
-                    num_domains = 2,
-                    learning_rate = 1e-3,
-                    weight_decay = 1e-4,
-                    device = args.device
+    elif "celeba" in args.dataset or "fairface" in args.dataset:
+        log_dir = os.path.join(
+            args.save_dir,
+            "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}".format(
+                args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus,
                 )
-                if args.domain_classifier:
-                    classifier.load(args.domain_classifier)
-                    if args.local_rank == 0:
-                        print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
-                classifier.eval()
-
-                # count number of left-flipped and right-flipped synthetic samples
-                if args.local_rank == 0:
-                    print("Sample with guidance {} \n".format(w))
-
-                    transform_test = transforms.Compose(
-                            [
-                                # transforms.Grayscale(num_output_channels=1),
-                                transforms.RandomResizedCrop(
-                                    28, scale=(0.8, 1.0), ratio=(0.8, 1.2)
-                                ),
-                                transforms.ToTensor(),
-                            ]
-                    )
-                    domain_dataset = ArrayToImageLabel(
-                        samples = sampled_images,
-                        labels = labels,
-                        mode = "L",
-                        transform = transform_test,
-                        target_transform = None
-                    )
-                    domain_dataloader = DataLoader(
-                        domain_dataset,
-                        batch_size = args.batch_size,
-                        shuffle = False,
-                        num_workers = ngpus * 4
-                    )
-
-                    # overall number
-                    overall_counts = count_flip(domain_dataloader, classifier, classwise=False)
-                    print("Precent of regular synthetic digits over all classes: {:.3f}".format(overall_counts["num_left"] / args.num_sampled_images))
-                    print("Precent of flipped synthetic digits over all classes: {:.3f}".format(overall_counts["num_right"] / args.num_sampled_images))
-
-                    # group by classes
-                    classwise_counts = count_flip(domain_dataloader, classifier, classwise=True)
-                    assert args.num_sampled_images == np.sum(classwise_counts["num_samples"]), "number of total samples and sum of classwise counts do not match!"
-                    print("Precent of regular synthetic digits by classes: {}".format((classwise_counts["num_left"] / classwise_counts["num_samples"]).tolist()))
-                    print("Precent of flipped synthetic digits by classes: {}".format((classwise_counts["num_right"] / classwise_counts["num_samples"]).tolist()))
-            
-            elif "cifar-superclass" in args.dataset:
-                if args.sampling_only:
-                    # sample first time
-                    sampled_images, labels = sample_N_images(
-                        args.num_sampled_images,
-                        model,
-                        diffusion,
-                        None,
-                        args.sampling_steps,
-                        args.batch_size,
-                        metadata.num_channels,
-                        metadata.image_size,
-                        metadata.num_classes,
-                        args,
-                    )
-                
-                else:
-                    # otherwise load previous samples
-                    file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
-                    file_load = np.load(file_path, allow_pickle=True)
-
-                    sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
-                    labels = file_load['arr_1'] # empty if class_cond = False
-                    print("Loading samples and labels from {}".format(file_path))
-            
-            if args.sampling_only:
-                if "ema" in args.ckpt_name:
-                    os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
-                    np.savez(
-                        os.path.join(
-                            log_dir,
-                            "samples_ema",
-                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
-                        ),
-                        sampled_images,
-                        labels,
-                    )
-                else:
-                    os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-                    np.savez(
-                        os.path.join(
-                            log_dir,
-                            "samples",
-                            f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
-                        ),
-                        sampled_images,
-                        labels,
-                    )
-
-        return
+        )
+    os.makedirs(log_dir, exist_ok=True)
 
     # sampling
     if args.sampling_only:
@@ -503,7 +322,7 @@ def main(args):
                 os.path.join(
                     log_dir,
                     "samples_ema",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
                 ),
                 sampled_images,
                 labels,
@@ -514,7 +333,7 @@ def main(args):
                 os.path.join(
                     log_dir,
                     "samples",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",
+                    f"{args.ckpt_name}_num{args.num_sampled_images}.npz",
                 ),
                 sampled_images,
                 labels,
@@ -525,137 +344,6 @@ def main(args):
                 print("Number of color: {} \n".format(colorgray_dict["num_color"]))
                 print("Number of gray: {} \n".format(colorgray_dict["num_gray"]))
                 print("Finish sampling from pretrained checkpoint! Return")
-        return
-    if args.sampling_color_only:
-        sampled_images, labels = sample_color_images(
-            args.num_sampled_images,
-            model,
-            diffusion,
-            None,
-            args.sampling_steps,
-            args.batch_size,
-            metadata.num_channels,
-            metadata.image_size,
-            metadata.num_classes,
-            args,
-        )
-        if "ema" in args.ckpt_name:
-            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
-            np.savez(
-                os.path.join(
-                    log_dir,
-                    "samples_ema",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_color.npz",
-                ),
-                sampled_images,
-                labels,
-            )
-        else:
-            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-            np.savez(
-                os.path.join(
-                    log_dir,
-                    "samples",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_color.npz",
-                ),
-                sampled_images,
-                labels,
-            )
-        print("Finish sampling color images from pretrained checkpoint! Return")
-        return
-    if args.sampling_gray_only:
-        sampled_images, labels = sample_gray_images(
-            args.num_sampled_images,
-            model,
-            diffusion,
-            None,
-            args.sampling_steps,
-            args.batch_size,
-            metadata.num_channels,
-            metadata.image_size,
-            metadata.num_classes,
-            args,
-        )
-        if "ema" in args.ckpt_name:
-            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
-            np.savez(
-                os.path.join(
-                    log_dir,
-                    "samples_ema",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_gray.npz",
-                ),
-                sampled_images,
-                labels,
-            )
-        else:
-            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-            np.savez(
-                os.path.join(
-                    log_dir,
-                    "samples",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_gray.npz",
-                ),
-                sampled_images,
-                labels,
-            )
-        print("Finish sampling gray images from pretrained checkpoint! Return")
-        return
-    
-    if args.sampling_cifar_only:
-        classifier = DC_cifar_imgnet(
-            num_classes=2,
-            arch="resnet50",
-            pretrained=False,
-            learning_rate=1e-3,
-            weight_decay=1e-4,
-            device=args.device
-        )
-        if args.domain_classifier:
-            classifier.load(args.domain_classifier)
-            if args.local_rank == 0:
-                print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
-        classifier.eval()
-
-        transform_test = transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
-        sampled_images, labels = sample_N_images_classifier(
-            args.num_sampled_images,
-            model,
-            diffusion,
-            classifier,
-            transform_test,
-            None,
-            args.sampling_steps,
-            args.batch_size,
-            metadata.num_channels,
-            metadata.image_size,
-            metadata.num_classes,
-            args,
-        )
-
-        if "ema" in args.ckpt_name:
-            os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
-            np.savez(
-                os.path.join(
-                    log_dir,
-                    "samples_ema",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_cifar.npz",
-                ),
-                sampled_images,
-                labels,
-            )
-        else:
-            os.makedirs(os.path.join(log_dir, "samples"), exist_ok=True)
-            np.savez(
-                os.path.join(
-                    log_dir,
-                    "samples",
-                    f"{args.ckpt_name}_num{args.num_sampled_images}_cifar.npz",
-                ),
-                sampled_images,
-                labels,
-            )
-
-        print("Finish sampling CIFAR images from pretrained checkpoint! Return")
         return
 
     # Load dataset
@@ -690,7 +378,7 @@ def main(args):
     for epoch in range(args.epochs):
         if sampler is not None:
             sampler.set_epoch(epoch)
-        if args.dataset in ["celeba", "fairface"]:
+        if args.dataset in ["celeba", "fairface", "fairface-base"]:
             train_one_epoch_gender(model, train_loader, diffusion, optimizer, logger, None, args, epoch)
         else:
             train_one_epoch(model, train_loader, diffusion, optimizer, logger, None, args, epoch)

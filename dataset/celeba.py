@@ -54,25 +54,38 @@ class CelebA_AttrCond(datasets.CelebA):
     
     def get_target(self, attr_target):
         myattr_target = torch.gather(attr_target, 0, self.group_attr_idx)
-        for i in range(self.num_classes):
-            if myattr_target[0] == 0 and myattr_target[1] == 0 and myattr_target[2] == 0:
-                return int(0)
-            elif myattr_target[0] == 1 and myattr_target[1] == 0 and myattr_target[2] == 0:
-                return int(1)
-            elif myattr_target[0] == 0 and myattr_target[1] == 1 and myattr_target[2] == 0:
-                return int(2)
-            elif myattr_target[0] == 0 and myattr_target[1] == 0 and myattr_target[2] == 1:
-                return int(3)
-            elif myattr_target[0] == 1 and myattr_target[1] == 1 and myattr_target[2] == 0:
-                return int(4)
-            elif myattr_target[0] == 1 and myattr_target[1] == 0 and myattr_target[2] == 1:
-                return int(5)
-            elif myattr_target[0] == 0 and myattr_target[1] == 1 and myattr_target[2] == 1:
-                return int(6)
-            elif myattr_target[0] == 1 and myattr_target[1] == 1 and myattr_target[2] == 1:
-                return int(7)
-            else:
-                raise ValueError("No class exists in this combination!")
+        if self.num_classes == 8:
+            for i in range(self.num_classes):
+                if myattr_target[0] == 0 and myattr_target[1] == 0 and myattr_target[2] == 0:
+                    return int(0)
+                elif myattr_target[0] == 1 and myattr_target[1] == 0 and myattr_target[2] == 0:
+                    return int(1)
+                elif myattr_target[0] == 0 and myattr_target[1] == 1 and myattr_target[2] == 0:
+                    return int(2)
+                elif myattr_target[0] == 0 and myattr_target[1] == 0 and myattr_target[2] == 1:
+                    return int(3)
+                elif myattr_target[0] == 1 and myattr_target[1] == 1 and myattr_target[2] == 0:
+                    return int(4)
+                elif myattr_target[0] == 1 and myattr_target[1] == 0 and myattr_target[2] == 1:
+                    return int(5)
+                elif myattr_target[0] == 0 and myattr_target[1] == 1 and myattr_target[2] == 1:
+                    return int(6)
+                elif myattr_target[0] == 1 and myattr_target[1] == 1 and myattr_target[2] == 1:
+                    return int(7)
+                else:
+                    raise ValueError("No class exists in this combination!")
+        elif self.num_classes == 4:
+            for i in range(self.num_classes):
+                if myattr_target[0] == 0 and myattr_target[1] == 0:
+                    return int(0)
+                elif myattr_target[0] == 1 and myattr_target[1] == 0:
+                    return int(1)
+                elif myattr_target[0] == 0 and myattr_target[1] == 1:
+                    return int(2)
+                elif myattr_target[0] == 1 and myattr_target[1] == 1:
+                    return int(3)
+                else:
+                    raise ValueError("No class exists in this combination!")
 
 
 def get_attribute_distribution():
@@ -186,7 +199,62 @@ def get_all_gender_dist():
     plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/celeba/all_gender_dist.png", dpi=300)
     plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/celeba/all_gender_dist.pdf", dpi=300)
 
+
+def two_attrs():
+    myceleba = CelebA_AttrCond(
+        root=root_path,
+        split="train",
+        target_type="attr",
+        my_attrs=["Attractive", "Mouth_Slightly_Open"],
+        transform=transforms.Compose(
+            [
+                transforms.Resize(64),
+                transforms.CenterCrop(64),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        ),
+        target_transform=None,
+        download=False
+    )
+
+    count_labels = defaultdict(int)
+    for n in range(2):
+        count_labels[n] = np.zeros(myceleba.num_classes, dtype=int)
+    for image, attr_label, gender_label in myceleba:
+        count_labels[gender_label][attr_label] += 1
+    print(f"Number of Female/Male samples using Attribute [{myceleba.my_attrs[0]}, {myceleba.my_attrs[1]}]")
+    for n in range(2):
+        print(f"Gender {n}", count_labels[n])
+    
+    myceleba = CelebA_AttrCond(
+        root=root_path,
+        split="train",
+        target_type="attr",
+        my_attrs=["Attractive", "Smiling"],
+        transform=transforms.Compose(
+            [
+                transforms.Resize(64),
+                transforms.CenterCrop(64),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        ),
+        target_transform=None,
+        download=False
+    )
+
+    count_labels = defaultdict(int)
+    for n in range(2):
+        count_labels[n] = np.zeros(myceleba.num_classes, dtype=int)
+    for image, attr_label, gender_label in myceleba:
+        count_labels[gender_label][attr_label] += 1
+    print(f"Number of Female/Male samples using Attribute [{myceleba.my_attrs[0]}, {myceleba.my_attrs[1]}]")
+    for n in range(2):
+        print(f"Gender {n}", count_labels[n])
+
 if __name__ == "__main__":
     # get_attribute_distribution()
-    get_gender_per_label_dist()
+    # get_gender_per_label_dist()
     # get_all_gender_dist()
+    two_attrs()

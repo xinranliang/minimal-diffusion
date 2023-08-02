@@ -25,6 +25,15 @@ RACE = {
     # "Middle Eastern": 5, this race does not have balanced gender distribution
     "Latino_Hispanic": 5
 }
+RACE_FULL = {
+    "White": 0, 
+    "Black": 1, 
+    "Indian": 2, 
+    "East Asian": 3, 
+    "Southeast Asian": 4, 
+    "Middle Eastern": 5,
+    "Latino_Hispanic": 6
+}
 
 BASE_NUM = 5000
 # resolution = 224 x 224
@@ -86,8 +95,6 @@ class FairFace_Gender(Dataset):
                             self.full_index[RACE[row[race_idx]]][GENDER[row[gender_idx]]].append(curr_index)
                         curr_index += 1
 
-            f.close()
-
         elif split == "val":
             with open(os.path.join(self.root_path, "fairface_label_val.csv"), "r") as f:
                 csv_reader = csv.reader(f, delimiter=",")
@@ -102,7 +109,6 @@ class FairFace_Gender(Dataset):
                         self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
                         self.gender_labels.append(GENDER[row[gender_idx]])
                         self.race_labels.append(RACE[row[race_idx]])
-            f.close()
         else:
             raise ValueError("invalid dataset split")
         
@@ -137,6 +143,7 @@ class FairFace_Gender(Dataset):
             file_path = os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/datasets/fairface/index_split", date, f"index_f{f_ratio}_m{m_ratio}.pkl")
             with open(file_path, "rb") as f:
                 file_load = pickle.load(f)
+            print(f"Loading dataset from path {file_path}.")
             self.part_index = []
             for race in RACE.values():
                 for gender in GENDER.values():
@@ -167,6 +174,65 @@ class FairFace_Gender(Dataset):
         return image, self.race_labels[raw_idx], self.gender_labels[raw_idx]
 
 
+class FairFace_Base(Dataset):
+    def __init__(self, split, transform, root=root_path):
+        super().__init__()
+        self.transform = transform
+
+        self.root_path = root
+        # image_path, gender, race
+        self.image_paths = []
+        self.gender_labels = []
+        self.race_labels = []
+
+        # load csv
+        if split == "train":
+            with open(os.path.join(self.root_path, "fairface_label_train.csv"), "r") as f:
+                csv_reader = csv.reader(f, delimiter=",")
+
+                header = next(csv_reader)
+                file_idx = header.index("file")
+                gender_idx = header.index("gender")
+                race_idx = header.index("race")
+
+                for row in csv_reader:
+                    self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
+                    self.gender_labels.append(GENDER[row[gender_idx]])
+                    self.race_labels.append(RACE_FULL[row[race_idx]])
+        
+        elif split == "val":
+            with open(os.path.join(self.root_path, "fairface_label_val.csv"), "r") as f:
+                csv_reader = csv.reader(f, delimiter=",")
+
+                header = next(csv_reader)
+                file_idx = header.index("file")
+                gender_idx = header.index("gender")
+                race_idx = header.index("race")
+
+                for row in csv_reader:
+                    self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
+                    self.gender_labels.append(GENDER[row[gender_idx]])
+                    self.race_labels.append(RACE_FULL[row[race_idx]])
+        
+        else:
+            raise ValueError("invalid dataset split")
+        
+        assert len(self.image_paths) == len(self.gender_labels) and len(self.image_paths) == len(self.race_labels), "number of samples does not match!"
+    
+    def __len__(self):
+        return len(self.image_paths)
+    
+    def __getitem__(self, index):
+        # get image
+        img_path = self.image_paths[index]
+        with open(img_path, "rb") as f:
+            image = Image.open(f).convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+
+        # get label: race, gender
+        return image, self.race_labels[index], self.gender_labels[index]
+
 
 class FairFace_Race(Dataset):
     def __init__(self, root, split, transform):
@@ -194,7 +260,6 @@ class FairFace_Race(Dataset):
                         self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
                         self.gender_labels.append(GENDER[row[gender_idx]])
                         self.race_labels.append(RACE[row[race_idx]])
-            f.close()
 
         elif split == "val":
             with open(os.path.join(self.root_path, "fairface_label_val.csv"), "r") as f:
@@ -210,7 +275,6 @@ class FairFace_Race(Dataset):
                         self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
                         self.gender_labels.append(GENDER[row[gender_idx]])
                         self.race_labels.append(RACE[row[race_idx]])
-            f.close()
         else:
             raise ValueError("invalid dataset split")
         
@@ -232,5 +296,13 @@ class FairFace_Race(Dataset):
 
 
 if __name__ == "__main__":
-    split_gender(date="2023-07-25")
-    split_gender(date="2023-07-26")
+    # split_gender(date="2023-07-25")
+    # split_gender(date="2023-07-26")
+    trainsform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor()
+            ]
+        )
+    myff_full = FairFace_Base("train", trainsform_train)
+    print(len(myff_full))

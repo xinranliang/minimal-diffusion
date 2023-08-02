@@ -47,7 +47,6 @@ def get_all_gender_dist():
         for row in csv_reader:
             k, v = GENDER[row[gender_idx]], RACE[row[race_idx]]
             count_dist[k][v] += 1
-        f.close()
     
     print(count_dist)
     # plot
@@ -87,7 +86,6 @@ class Domain_FairFace(Dataset):
                 for row in csv_reader:
                     self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
                     self.gender_labels.append(GENDER[row[gender_idx]])
-            f.close()
 
         elif split == "val":
             with open(os.path.join(self.root_path, "fairface_label_val.csv"), "r") as f:
@@ -100,7 +98,6 @@ class Domain_FairFace(Dataset):
                 for row in csv_reader:
                     self.image_paths.append(os.path.join(self.root_path, row[file_idx]))
                     self.gender_labels.append(GENDER[row[gender_idx]])
-            f.close()
         else:
             raise ValueError("invalid dataset split")
         
@@ -130,7 +127,12 @@ class DomainClassifier(nn.Module):
         # don't need last fc layer
         for param in self.cnn.fc.parameters():
             param.requires_grad = False
-        self.head = nn.Linear(512, num_classes).to(self.device)
+        if arch == "resnet18":
+            self.head = nn.Linear(512, num_classes).to(self.device)
+        elif arch == "resnet50":
+            self.head = nn.Linear(2048, num_classes).to(self.device)
+        else:
+            raise ValueError("architecture not supported!")
 
         # loss function
         self.loss_fn = nn.CrossEntropyLoss()
@@ -248,7 +250,7 @@ def get_args():
     parser.add_argument("--dataset", type=str, help="specify what dataset source")
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
-    parser.add_argument("--mode", type=str, choices=["train", "test-real", "test-fake"], help="whether to train or test model")
+    parser.add_argument("--mode", type=str, choices=["train", "test"], help="whether to train or test model")
 
     parser.add_argument("--ckpt-path", type=str, required=False, help="path directory to pretrained checkpoint for evaluation")
 
@@ -294,20 +296,20 @@ def train(args):
                 batch_size=args.batch_size,
                 shuffle=False,
                 sampler=DistributedSampler(domain_dataset_train),
-                num_workers=args.num_gpus * 4,
+                num_workers=4,
             )
         else:
             domain_loader_train = DataLoader(
                 domain_dataset_train,
                 batch_size=args.batch_size,
                 shuffle=True,
-                num_workers=args.num_gpus * 4,
+                num_workers=4,
             )
         domain_loader_test = DataLoader(
             domain_dataset_test,
             batch_size=args.batch_size,
             shuffle=False,
-            num_workers=args.num_gpus * 4
+            num_workers=4
         )
 
         # model
@@ -355,7 +357,15 @@ def train(args):
                 model.save(ckpt_dir, epoch, final=True)
         
         # evaluate
+        model.eval()
         if args.local_rank == 0:
+            domain_dataset_train = Domain_FairFace(root_path, "train", transform_test)
+            domain_loader_train = DataLoader(
+                domain_dataset_train,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=4,
+            )
             train_accs = []
             num_train = 0
             for image, label in iter(domain_loader_train):
@@ -374,13 +384,86 @@ def train(args):
             for image, label in iter(domain_loader_test):
                 with torch.no_grad():
                     if args.num_gpus > 1:
-                        _, train_acc = model.module.get_error(image, label)
+                        _, test_acc = model.module.get_error(image, label)
                     else:
-                        _, train_acc = model.get_error(image, label)
+                        _, test_acc = model.get_error(image, label)
                     test_accs.append(test_acc.detach().cpu().numpy())
                     num_test += label.shape[0]
             test_accuracy = np.array(test_accs, dtype=float).mean()
             print(f"Test set accuracy: {test_accuracy:.3f} over {num_test} images.")
+    
+    return
+
+def test(args):
+    if args.dataset == "fairface":
+        # eval mode
+        transform_test = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # normalized by imagenet mean std
+            ]
+        )
+        # dataset and dataloader
+        domain_dataset_train = Domain_FairFace(root_path, "train", transform_test)
+        domain_dataset_test = Domain_FairFace(root_path, "val", transform_test)
+        domain_loader_train = DataLoader(
+                domain_dataset_train,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=4,
+            )
+        domain_loader_test = DataLoader(
+            domain_dataset_test,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4
+        )
+
+        # model
+        model = DomainClassifier(
+            num_classes=args.num_domains,
+            arch=args.arch,
+            pretrained=args.pretrained,
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            device=args.device
+        )
+        # load checkpoint
+        args.ckpt_path = os.path.join(
+            "/n/fs/xl-diffbia/projects/minimal-diffusion/logs", args.date, args.dataset, "domain_classifier",
+            "bs{}_lr{}_decay{}".format(args.batch_size, args.learning_rate, args.weight_decay),
+            "ckpt", "model_param_final.pth"
+        )
+        model.load(args.ckpt_path)
+        
+        model.eval()
+        train_accs = []
+        num_train = 0
+        for image, label in iter(domain_loader_train):
+            with torch.no_grad():
+                if args.num_gpus > 1:
+                    _, train_acc = model.module.get_error(image, label)
+                else:
+                    _, train_acc = model.get_error(image, label)
+                train_accs.append(train_acc.detach().cpu().numpy())
+                num_train += label.shape[0]
+        train_accuracy = np.array(train_accs, dtype=float).mean()
+        print(f"Training set accuracy: {train_accuracy:.3f} over {num_train} images.")
+            
+        test_accs = []
+        num_test = 0
+        for image, label in iter(domain_loader_test):
+            with torch.no_grad():
+                if args.num_gpus > 1:
+                    _, test_acc = model.module.get_error(image, label)
+                else:
+                    _, test_acc = model.get_error(image, label)
+                test_accs.append(test_acc.detach().cpu().numpy())
+                num_test += label.shape[0]
+        test_accuracy = np.array(test_accs, dtype=float).mean()
+        print(f"Test set accuracy: {test_accuracy:.3f} over {num_test} images.")
+    
+    return
 
 
 def main(auto_rank, world_size):
@@ -411,6 +494,8 @@ def main(auto_rank, world_size):
     
     if args.mode == "train":
         train(args)
+    elif args.mode == "test":
+        test(args)
     
     return
 

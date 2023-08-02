@@ -9,16 +9,16 @@ from torchvision import datasets, transforms
 
 from dataset.cifar10 import CIFAR10_ColorGray, CIFAR10_FixGroup, CIFAR_SuperClass
 from dataset.celeba import CelebA_AttrCond
-from dataset.fairface import FairFace_Gender
+from dataset.fairface import FairFace_Gender, FairFace_Base
 from dataset.mix_cifar10_imagenet import Mix_CIFAR10ImageNet
-from dataset.cifar10_other import CIFAR10_Other
+from dataset.cifar_imagenet import CIFAR_ImageNet
 from dataset.mnist import MNIST_FLIP
 
 
 def get_metadata(
     name, date,
     fix=None, color=None, grayscale=None, # this is for CIFAR10 2 domains
-    fix_name="cifar10", other_name=None, fix_num=None, other_num=None, # this is for combine 2 dataset source as 2 domains
+    num_cifar=None, num_imagenet=None, # this is for combine 2 dataset source as 2 domains
     num_train_baseline=None, # this is for combine 2 dataset source as 1 domain - baseline for above setting
     flip_left=None, flip_right=None, # this is for testing mnist dataset
     semantic_group=None, front_ratio=None, back_ratio=None, # this is for grouping cifar samples into super classes
@@ -58,15 +58,15 @@ def get_metadata(
                     "date": date
                 }
             )
-    elif name == "cifar10-imagenet":
+    elif name == "cifar-imagenet":
         metadata = EasyDict(
             {
                 "image_size": 32,
                 "num_classes": 10,
-                "train_images": fix_num + other_num,
+                "train_images": num_cifar + num_imagenet,
                 "val_images": 10000,
-                "num_cifar10": fix_num,
-                "num_imagenet": other_num,
+                "num_cifar": num_cifar,
+                "num_imagenet": num_imagenet,
                 "num_channels": 3,
                 "date": date
             }
@@ -180,6 +180,15 @@ def get_metadata(
                 "num_channels": 3,
             }
         )
+    elif name == "fairface-base":
+        metadata = EasyDict(
+            {
+                "image_size": 64,
+                "train_images": 86744,
+                "val_images": 9745,
+                "num_channels": 3,
+            }
+        )
     else:
         raise ValueError(f"{name} dataset nor supported!")
     return metadata
@@ -249,21 +258,20 @@ def get_dataset(name, data_dir, metadata):
             date=metadata.date,
             split=False
         )
-    elif name == "cifar10-imagenet":
+    elif name == "cifar-imagenet":
         transform_train = transforms.Compose(
             [
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
             ]
         )
-        train_set = CIFAR10_Other(
-            root = os.path.join(data_dir, "cifar10"),
-            train = True,
+        train_set = CIFAR_ImageNet(
+            split = "train",
             transform=transform_train,
             target_transform=None,
-            fix_num = metadata.num_cifar10,
-            other_num = metadata.num_imagenet,
-            other_name = "imagenet",
+            num_cifar = metadata.num_cifar,
+            num_imagenet = metadata.num_imagenet,
+            init = False,
             date = metadata.date
         )
     
@@ -392,6 +400,18 @@ def get_dataset(name, data_dir, metadata):
             f_ratio=metadata.female_ratio, 
             m_ratio=metadata.male_ratio, 
             date=metadata.date
+        )
+    elif name == "fairface-base":
+        trainsform_train = transforms.Compose(
+            [
+                transforms.Resize(metadata.image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor()
+            ]
+        )
+        train_set = FairFace_Base(
+            split="train",
+            transform=trainsform_train
         )
     else:
         raise ValueError(f"{name} dataset nor supported!")

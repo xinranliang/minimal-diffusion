@@ -175,7 +175,44 @@ def call_guidance_dist():
     plot_guidance_dist(color, 0.05)
 
 
+def plot_cifar_colorgray():
+    colors = ["blue", "orange", "green", "purple", "brown"]
+    domain_split = np.array([0.1, 0.3, 0.5, 0.7, 0.9], dtype=np.float64)
+    ws = np.array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0], dtype=np.float64)
+
+    counts = [
+        np.vstack([[3292, 3406, 3731, 3869, 4099, 4364, 5572, 6640, 8276], [3304, 3391, 3738, 3841, 3996, 4262, 5400, 6293, 7539]]) / 50000,
+        np.vstack([[12002, 12399, 13225, 13867, 14553, 15075, 18263, 20895, 23620], [12004, 12442, 12942, 13693, 14082, 14618, 17131, 19095, 21139]]) / 50000,
+        np.vstack([[22076, 22636, 23582, 24674, 25462, 26271, 29939, 33002, 35650], [22535, 23023, 23775, 24658, 25395, 26157, 29422, 32394, 34909]]) / 50000,
+        np.vstack([[32848, 33675, 34398, 35533, 36221, 36985, 39938, 42068, 43742], [32845, 33559, 34488, 35525, 36062, 36905, 39556, 41541, 42931]]) / 50000,
+        np.vstack([[44009, 44496, 45032, 45538, 45794, 46133, 47243, 47982, 48461], [44183, 44713, 45270, 45793, 45943, 46450, 47499, 48229, 48527]]) / 50000,
+    ]
+
+    counts_mean = [
+        np.mean(single_count, axis=0) for single_count in counts 
+    ]
+    conts_error = [
+        np.absolute(single_count[1] - single_count[0]) / 2 for single_count in counts
+    ]
+
+    plt.figure(figsize=(8, 8/1.6))
+    with plt.style.context('ggplot'):
+        for idx in range(len(domain_split)):
+            plt.errorbar(ws, counts_mean[idx], yerr=conts_error[idx], linestyle="-", linewidth=1, color=colors[idx], capsize=3)
+            plt.axhline(domain_split[idx], xmin=ws[0], xmax=ws[-1], linestyle="--", color=colors[idx])
+        plt.xticks(ws, ws)
+        plt.ylim(0, 1.01)
+        plt.yticks(np.arange(0, 1.01, step=0.1))
+        plt.xlabel("Scale of classifier-free guidance ($w$)")
+        plt.ylabel("Value")
+        plt.title("Sampling distribution w.r.t Guidance on CIFAR10 dataset")
+    
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-27/cifar10/figures", "guidance_count_colorgray.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-03-27/cifar10/figures", "guidance_count_colorgray.pdf"), dpi=300, bbox_inches="tight")
+    plt.close()
+
 
 if __name__ == "__main__":
-    call_guidance_dist()
-    call_guidance_dist_classwise()
+    # call_guidance_dist()
+    # call_guidance_dist_classwise()
+    plot_cifar_colorgray()

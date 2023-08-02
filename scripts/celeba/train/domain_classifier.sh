@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=16     # Specify the number of CPUs your task will need.
 #SBATCH --gres=gpu:rtx_2080:4          # the number of GPUs requested
 #SBATCH --mem=24G             # memory 
-#SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-07-20/celeba_gender_classifier.txt            # where stdout and stderr will write to
-#SBATCH -t 12:00:00           # time requested in hour:minute:second
+#SBATCH --output=/n/fs/xl-diffbia/projects/minimal-diffusion/slurm_output/2023-07-20/celeba_gender_classifier_cont.txt            # where stdout and stderr will write to
+#SBATCH -t 24:00:00           # time requested in hour:minute:second
 #SBATCH --mail-type=all       # choice between begin, end, all to notify you via email
 #SBATCH --mail-user=xl9353@cs.princeton.edu
 

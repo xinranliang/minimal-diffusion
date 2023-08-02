@@ -162,7 +162,7 @@ def get_args():
     parser.add_argument("--dataset", type=str, help="specify what dataset source")
     parser.add_argument("--num-domains", type=int, help="number of output classes")
 
-    parser.add_argument("--mode", type=str, choices=["train", "test-real", "test-fake"], help="whether to train or test model")
+    parser.add_argument("--mode", type=str, choices=["train", "test"], help="whether to train or test model")
 
     parser.add_argument("--ckpt-path", type=str, required=False, help="path directory to pretrained checkpoint for evaluation")
 
@@ -236,26 +236,26 @@ def train(args):
                 batch_size=args.batch_size,
                 shuffle=False,
                 sampler=DistributedSampler(domain_dataset_train),
-                num_workers=args.num_gpus * 4,
+                num_workers=4,
             )
         else:
             domain_loader_train = DataLoader(
                 domain_dataset_train,
                 batch_size=args.batch_size,
                 shuffle=True,
-                num_workers=args.num_gpus * 4,
+                num_workers=4,
             )
         domain_loader_val = DataLoader(
             domain_dataset_val,
             batch_size=args.batch_size,
             shuffle=False,
-            num_workers=args.num_gpus * 4,
+            num_workers=4,
         )
         domain_loader_test = DataLoader(
             domain_dataset_test,
             batch_size=args.batch_size,
             shuffle=False,
-            num_workers=args.num_gpus * 4,
+            num_workers=4,
         )
 
     # model
@@ -335,6 +335,116 @@ def test(model, test_dataloader):
         final_accuracy = np.array(accs, dtype=float).mean()
     print(f"Final test accuracy: {final_accuracy:.3f}")
 
+def eval(args):
+    if args.dataset == "celeba":
+        # eval mode
+        transform_eval = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # normalized by imagenet mean std
+            ]
+        )
+        domain_dataset_train = Domain_CelebA(
+            root = root_path,
+            split = "train",
+            target_type="attr",
+            transform=transform_eval,
+            target_transform=None
+        )
+        domain_dataset_val = Domain_CelebA(
+            root = root_path,
+            split = "valid",
+            target_type="attr",
+            transform=transform_eval,
+            target_transform=None
+        )
+        domain_dataset_test = Domain_CelebA(
+            root = root_path,
+            split = "test",
+            target_type="attr",
+            transform=transform_eval,
+            target_transform=None
+        )
+        domain_loader_train = DataLoader(
+            domain_dataset_train,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+        )
+        domain_loader_val = DataLoader(
+            domain_dataset_val,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+        )
+        domain_loader_test = DataLoader(
+            domain_dataset_test,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=4,
+        )
+        # model
+        model = DomainClassifier(
+            num_classes=args.num_domains,
+            arch=args.arch,
+            pretrained=args.pretrained,
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            device=args.device
+        )
+        # load checkpoint
+        args.ckpt_path = os.path.join(
+            "/n/fs/xl-diffbia/projects/minimal-diffusion/logs", args.date, args.dataset, "domain_classifier",
+            "bs{}_lr{}_decay{}".format(args.batch_size, args.learning_rate, args.weight_decay),
+            "ckpt", "model_param_final.pth"
+        )
+        model.load(args.ckpt_path)
+
+        model.eval()
+
+        train_accs = []
+        num_train = 0
+        for image, attr, label in iter(domain_loader_train):
+            with torch.no_grad():
+                if args.num_gpus > 1:
+                    _, train_acc = model.module.get_error(image, label)
+                else:
+                    _, train_acc = model.get_error(image, label)
+                train_accs.append(train_acc.detach().cpu().numpy())
+                num_train += label.shape[0]
+        train_accuracy = np.array(train_accs, dtype=float).mean()
+        print(f"Training set accuracy: {train_accuracy:.3f} over {num_train} images.")
+
+        val_accs = []
+        num_val = 0
+        for image, attr, label in iter(domain_loader_val):
+            with torch.no_grad():
+                if args.num_gpus > 1:
+                    _, val_acc = model.module.get_error(image, label)
+                else:
+                    _, val_acc = model.get_error(image, label)
+                val_accs.append(val_acc.detach().cpu().numpy())
+                num_val += label.shape[0]
+        val_accuracy = np.array(val_accs, dtype=float).mean()
+        print(f"Validation set accuracy: {val_accuracy:.3f} over {num_val} images.")
+
+        test_accs = []
+        num_test = 0
+        for image, attr, label in iter(domain_loader_test):
+            with torch.no_grad():
+                if args.num_gpus > 1:
+                    _, test_acc = model.module.get_error(image, label)
+                else:
+                    _, test_acc = model.get_error(image, label)
+                test_accs.append(test_acc.detach().cpu().numpy())
+                num_test += label.shape[0]
+        test_accuracy = np.array(test_accs, dtype=float).mean()
+        print(f"Test set accuracy: {test_accuracy:.3f} over {num_test} images.")
+
+    return
+
 
 def get_domain_dist(domain_dataset, split):
     count_labels = defaultdict(int)
@@ -372,6 +482,8 @@ def main(auto_rank, world_size):
     
     if args.mode == "train":
         train(args)
+    elif args.mode == "test":
+        eval(args)
     
     return
 
