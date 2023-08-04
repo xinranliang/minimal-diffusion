@@ -252,6 +252,7 @@ def train_one_epoch_gender(
 
 
 # sample code
+@torch.no_grad()
 def sample_N_images(
     N,
     model,
@@ -315,6 +316,7 @@ def sample_N_images(
     return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
+@torch.no_grad()
 def sample_N_images_nodist(
     N,
     model,
@@ -356,6 +358,7 @@ def sample_N_images_nodist(
     return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
+@torch.no_grad()
 def sample_color_images(
     N,
     model,
@@ -410,6 +413,7 @@ def sample_color_images(
     return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
+@torch.no_grad()
 def sample_gray_images(
     N,
     model,
@@ -464,6 +468,7 @@ def sample_gray_images(
     return (samples, np.concatenate(labels)[:N] if args.class_cond else None)
 
 
+@torch.no_grad()
 def sample_N_images_cond(
     N,
     model,
@@ -532,6 +537,7 @@ def sample_N_images_cond(
     return (samples, np.concatenate(labels)[:N])
 
 
+@torch.no_grad()
 def sample_N_images_classifier(
     N,
     model,

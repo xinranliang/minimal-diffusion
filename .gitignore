@@ -147,5 +147,6 @@ dmypy.json
 *datasets*
 
 # slurm
+slurm*
 slurm_output*
 *.txt

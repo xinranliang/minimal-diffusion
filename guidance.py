@@ -22,7 +22,7 @@ from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet
 from domain_classifier.mnist_flip import DomainClassifier as DC_mnist, count_flip
 import utils
 from metrics.color_gray import count_colorgray, compute_colorgray
-from main import get_args()
+from main import get_args
 
 
 def guidance_sample(args):
@@ -100,10 +100,11 @@ def guidance_sample(args):
     # log dir
     str_lst = args.pretrained_ckpt.split("/")
     target_index = str_lst.index("ckpt")
-    log_dir = os.path.join(str_lst[:target_index])
+    log_dir = os.path.join(*str_lst[:target_index])
     w_list = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]
 
     for w in w_list:
+        args.classifier_free_w = w
 
         # color/gray domain datasets: cifar10 or mix-cifar10-imagenet or cifar10-imagenet
         if "cifar10" in args.dataset:
@@ -256,6 +257,58 @@ def guidance_sample(args):
             
             return
         
+        elif args.dataset == "fairface":
+            if args.sampling_only:
+                # sample first time
+                sampled_images, labels = sample_N_images(
+                    args.num_sampled_images,
+                    model,
+                    diffusion,
+                    None,
+                    args.sampling_steps,
+                    args.batch_size,
+                    metadata.num_channels,
+                    metadata.image_size,
+                    metadata.num_classes,
+                    args,
+                )
+            else:
+                # otherwise load previous samples
+                file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                file_load = np.load(file_path, allow_pickle=True)
+
+                sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                labels = file_load['arr_1'] # empty if class_cond = False
+                print("Loading samples and labels from {}".format(file_path))
+
+                # domain classifier and count distribution
+        
+        elif args.dataset == "cifar-imagenet":
+            if args.sampling_only:
+                # sample first time
+                sampled_images, labels = sample_N_images(
+                    args.num_sampled_images,
+                    model,
+                    diffusion,
+                    None,
+                    args.sampling_steps,
+                    args.batch_size,
+                    metadata.num_channels,
+                    metadata.image_size,
+                    metadata.num_classes,
+                    args,
+                )
+            else:
+                # otherwise load previous samples
+                file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                file_load = np.load(file_path, allow_pickle=True)
+
+                sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                labels = file_load['arr_1'] # empty if class_cond = False
+                print("Loading samples and labels from {}".format(file_path))
+
+                # domain classifier and count distribution
+        
         else:
             raise ValueError(f"Invalid dataset: {args.dataset}!")
             
@@ -284,4 +337,8 @@ def guidance_sample(args):
                 )
         
         return
-    
+
+
+if __name__ == "__main__":
+    args = get_args()
+    guidance_sample(args)
