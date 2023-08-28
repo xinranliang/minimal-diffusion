@@ -416,3 +416,208 @@ def get_dataset(name, data_dir, metadata):
     else:
         raise ValueError(f"{name} dataset nor supported!")
     return train_set
+
+
+# TODO: Add datasets imagenette/birds/svhn etc etc.
+def get_domain_dataset(name, data_dir, metadata):
+    """
+    Return a dataset with the current name. We only support two datasets with
+    their fixed image resolutions. One can easily add additional datasets here.
+
+    This is for binary domain classification only. So not use any data augmentation.
+    """
+    if name == "cifar10":
+        transform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
+        """train_set = datasets.CIFAR10(
+            root=data_dir,
+            train=True,
+            download=False,
+            transform=transform_train,
+        )"""
+        if metadata.fix == "total":
+            train_set = CIFAR10_ColorGray(
+                root=os.path.join(data_dir, "cifar10"),
+                train=True,
+                download=False,
+                transform=transform_train,
+                target_transform=None,
+                color_ratio=metadata.color_ratio,
+                grayscale_ratio=metadata.grayscale_ratio,
+                split = False,
+                date = metadata.date
+            )
+        elif metadata.fix == "color" or metadata.fix == "gray":
+            train_set = CIFAR10_FixGroup(
+                root=os.path.join(data_dir, "cifar10"),
+                train=True,
+                download=False,
+                transform=transform_train,
+                target_transform=None,
+                fix=metadata.fix,
+                color_number=metadata.color_number,
+                gray_number=metadata.gray_number,
+                split=False,
+                date = metadata.date
+            )
+    elif name == "mix-cifar10-imagenet":
+        transform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = Mix_CIFAR10ImageNet(
+            root = os.path.join(data_dir, "cifar10-imagenet/train"),
+            transform=transform_train,
+            target_transform=None,
+            fix=metadata.fix,
+            color_num=metadata.color_number,
+            gray_num=metadata.gray_number,
+            date=metadata.date,
+            split=False
+        )
+    elif name == "cifar-imagenet":
+        transform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+            ]
+        )
+        train_set = CIFAR_ImageNet(
+            split = "train",
+            transform=transform_train,
+            target_transform=None,
+            num_cifar = metadata.num_cifar,
+            num_imagenet = metadata.num_imagenet,
+            init = False,
+            date = metadata.date
+        )
+    
+    elif name == "mnist-full":
+        transform_left = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        transform_right = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(p=1.0),
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = MNIST_FLIP(
+            root = os.path.join(data_dir, "mnist"),
+            train = True,
+            transform_left = transform_left,
+            transform_right = transform_right,
+            target_transform = None,
+            download = True,
+            date = metadata.date,
+            split = False,
+            ratio_left = metadata.flip_left,
+            ratio_right = metadata.flip_right,
+        )
+    
+    elif name == "mnist-subset":
+        transform_left = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        transform_right = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(p=1.0),
+                transforms.RandomResizedCrop(
+                    metadata.image_size, scale=(0.8, 1.0), ratio=(0.8, 1.2)
+                ),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = MNIST_FLIP(
+            root = os.path.join(data_dir, "mnist"),
+            train = True,
+            transform_left = transform_left,
+            transform_right = transform_right,
+            target_transform = None,
+            download = True,
+            date = metadata.date,
+            split = False,
+            ratio_left = metadata.flip_left,
+            ratio_right = metadata.flip_right,
+        )
+    
+    elif name == "cifar-superclass":
+        transform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = CIFAR_SuperClass(
+            root = os.path.join(data_dir, "cifar10"),
+            transform = transform_train,
+            target_transform = None,
+            train = True,
+            download = False,
+            front_ratio = metadata.front_ratio,
+            back_ratio = metadata.back_ratio,
+            split = False,
+            split_type = metadata.split_type,
+            date = metadata.date,
+        )
+
+    elif name == "celeba":
+        # celebA has a large number of images, avoiding randomcropping.
+        transform_train = transforms.Compose(
+            [
+                transforms.Resize(metadata.image_size),
+                transforms.CenterCrop(metadata.image_size),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = CelebA_AttrCond(
+            split="train",
+            target_type="attr",
+            transform=transform_train,
+        )
+    elif name == "celeba-hq":
+        transform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = datasets.CelebA(
+            root=os.path.join(data_dir, "celebA-HQ"),
+            split="train",
+            target_type = "attr",
+            transform=transform_train,
+            download=True
+        )
+    elif name == "fairface":
+        trainsform_train = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # normalized by imagenet mean std
+            ]
+        )
+        train_set = FairFace_Gender(
+            split="train", 
+            transform=trainsform_train, 
+            f_ratio=metadata.female_ratio, 
+            m_ratio=metadata.male_ratio, 
+            date=metadata.date
+        )
+    else:
+        raise ValueError(f"{name} dataset nor supported!")
+    return train_set

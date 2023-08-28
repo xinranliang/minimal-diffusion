@@ -31,6 +31,53 @@ RACE = {
     "Latino_Hispanic": 6
 }
 
+
+def count_fairface(imagelabel_loader, classifier, return_type, classwise=False):
+    if not classwise:
+        num_male, num_female = 0, 0
+        prob_list = []
+        for image, _ in iter(imagelabel_loader):
+            with torch.no_grad():
+                syn_pred = classifier.predict(image)
+                syn_pred_prob = syn_pred.detach().cpu().numpy() # num_samples x 2
+                # return predicted probability histogram
+                prob_list.extend(np.squeeze(syn_pred_prob[:, 0])) # (num_samples, )
+                # return binary predicted counts
+                syn_pred_count = torch.argmax(syn_pred, dim=-1)
+                syn_pred_count = syn_pred_count.detach().cpu().numpy() # (num_samples, )
+                num_female += sum(syn_pred_count == 0)
+                num_male += sum(syn_pred_count == 1)
+        
+        return_results = {}
+        if "percent" in return_type:
+            return_results["percent"] = {"num_male": num_male, "num_female": num_female}
+        if "histogram" in return_type:
+            return_results["histogram"] = np.array(prob_list, dtype=float)
+        return return_results
+
+def count_fairface_real(real_loader, classifier, return_type, classwise=False):
+    if not classwise:
+        num_male, num_female = 0, 0
+        prob_list = []
+        for image, _, _ in iter(real_loader):
+            with torch.no_grad():
+                syn_pred = classifier.predict(image)
+                syn_pred_prob = syn_pred.detach().cpu().numpy() # num_samples x 2
+                # return predicted probability histogram
+                prob_list.extend(np.squeeze(syn_pred_prob[:, 0])) # (num_samples, )
+                # return binary predicted counts
+                syn_pred_count = torch.argmax(syn_pred, dim=-1)
+                syn_pred_count = syn_pred_count.detach().cpu().numpy() # (num_samples, )
+                num_female += sum(syn_pred_count == 0)
+                num_male += sum(syn_pred_count == 1)
+        
+        return_results = {}
+        if "percent" in return_type:
+            return_results["percent"] = {"num_male": num_male, "num_female": num_female}
+        if "histogram" in return_type:
+            return_results["histogram"] = np.array(prob_list, dtype=float)
+        return return_results
+
 def get_all_gender_dist():
 
     count_dist = defaultdict(int)
@@ -215,6 +262,8 @@ class DomainClassifier(nn.Module):
         return pred_loss, pred_acc
     
     def predict(self, image, label=None):
+        # training time provided with true labels, return binary prediction accuracy
+        # inference time provided with image only, return predicted probability of two classes
         if label is None:
             image = image.to(self.device)
         else:
@@ -223,13 +272,14 @@ class DomainClassifier(nn.Module):
         pred_logits = self.forward(image)
         # compute accuracy
         pred_probs = self.softmax(pred_logits)
-        pred_target = torch.argmax(pred_probs, dim=-1)
+        # pred_target = torch.argmax(pred_probs, dim=-1)
 
         if label is not None:
+            pred_target = torch.argmax(pred_probs, dim=-1)
             pred_acc = torch.sum(pred_target == label) / label.shape[0]
             return pred_acc
         else:
-            return pred_target
+            return pred_probs
     
     def update(self, image, label):
         pred_loss, pred_acc = self.get_error(image, label)

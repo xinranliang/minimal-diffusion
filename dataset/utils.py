@@ -176,8 +176,10 @@ class ArrayToImageLabel(Dataset):
             assert self.samples.min() >= 0 and self.samples.max() <= 255
         
         assert len(self.samples.shape) == 4, "Images must be a batch"
-        assert self.samples.shape[0] == self.labels.shape[0], "Number of images and labels must match"
+        if self.labels is not None:
+            assert self.samples.shape[0] == self.labels.shape[0], "Number of images and labels must match"
         self.num_items = self.samples.shape[0]
+        print(f"Converting {self.num_items} number of samples")
 
         # transformation
         self.transform = transform
@@ -203,4 +205,4 @@ class ArrayToImageLabel(Dataset):
         if self.labels is not None:
             return image, label # image, class-condition label
         else:
-            return image
+            return image, torch.randint(1, size=(1,))

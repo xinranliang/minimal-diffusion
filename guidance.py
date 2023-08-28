@@ -14,15 +14,23 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from dataset.data import get_metadata, get_dataset
+from dataset.data import get_metadata, get_domain_dataset
 from dataset.utils import ArrayToImageLabel
+
 from model.diffusion import GuassianDiffusion, sample_N_images
 import model.unets as unets
-from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet
+
+from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet, count_cifar_imgnet
 from domain_classifier.mnist_flip import DomainClassifier as DC_mnist, count_flip
-import utils
+from domain_classifier.fairface import DomainClassifier as DC_fairface, count_fairface, count_fairface_real
+from domain_classifier.celeba import DomainClassifier as DC_celeba
 from metrics.color_gray import count_colorgray, compute_colorgray
+
+import utils
 from main import get_args
+
+from plot.plot_cifar_imgnet import plot_cifar_imgnet_hist
+from plot.plot_fairface_gender import plot_fairface_hist
 
 
 def guidance_sample(args):
@@ -101,7 +109,96 @@ def guidance_sample(args):
     str_lst = args.pretrained_ckpt.split("/")
     target_index = str_lst.index("ckpt")
     log_dir = os.path.join(*str_lst[:target_index])
+
+    # first predict real samples distribution
+    if "mnist" in args.dataset:
+        classifier = DC_mnist(
+            num_classes = metadata.num_classes,
+            num_domains = 2,
+            learning_rate = 1e-3,
+            weight_decay = 1e-4,
+            device = args.device
+        )
+        if args.domain_classifier:
+            classifier.load(args.domain_classifier)
+            if args.local_rank == 0:
+                print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
+        classifier.eval()
+
+        real_dataset = get_domain_dataset(args.dataset, args.data_dir, metadata)
+        real_dataloader = DataLoader(
+            real_dataset,
+            batch_size = args.batch_size,
+            shuffle = False,
+            num_workers = ngpus * 4
+        )
+        real_overall_counts = count_flip(real_dataloader, classifier, classwise=False)
+        print("Precent of predicted regular real digits over all classes: {:.3f}".format(overall_counts["num_left"] / len(real_dataset)))
+        print("Precent of predicted flipped real digits over all classes: {:.3f}".format(overall_counts["num_right"] / len(real_dataset)))
+    
+    elif args.dataset == "cifar-imagenet":
+        # domain classifier and count distribution
+        classifier = DC_cifar_imgnet(
+            num_classes = 2,
+            arch = "resnet50",
+            pretrained = False,
+            learning_rate = 0.001,
+            weight_decay = 0.0001,
+            device = args.device
+        )
+        if args.domain_classifier:
+            classifier.load(args.domain_classifier)
+            if args.local_rank == 0:
+                print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
+        classifier.eval()
+
+        real_dataset = get_domain_dataset(args.dataset, args.data_dir, metadata)
+        real_dataloader = DataLoader(
+            real_dataset,
+            batch_size = args.batch_size,
+            shuffle = False,
+            num_workers = 4
+        )
+
+        real_count_dict = count_cifar_imgnet(real_dataloader, classifier, return_type=["percent", "histogram"])
+
+        # print result
+        print("Percent of predicted real CIFAR samples: {:.3f}".format(real_count_dict["percent"]["num_cifar"] / len(real_dataset)))
+        print("Percent of predicted real ImageNet samples: {:.3f}".format(real_count_dict["percent"]["num_imgnet"] / len(real_dataset)))
+    
+    elif args.dataset == "fairface":
+        classifier = DC_fairface(
+            num_classes = 2,
+            arch = "resnet50",
+            pretrained = True,
+            learning_rate = 0.0001,
+            weight_decay = 0.00001,
+            device = args.device
+        )
+        if args.domain_classifier:
+            classifier.load(args.domain_classifier)
+            if args.local_rank == 0:
+                print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
+        classifier.eval()
+
+        real_dataset = get_domain_dataset(args.dataset, args.data_dir, metadata)
+        real_dataloader = DataLoader(
+            real_dataset,
+            batch_size = args.batch_size,
+            shuffle = False,
+            num_workers = 4
+        )
+
+        real_count_dict = count_fairface_real(real_dataloader, classifier, return_type=["percent", "histogram"])
+        # print result
+        print("Percent of predicted real female samples: {:.3f}".format(real_count_dict["percent"]["num_female"] / len(real_dataset)))
+        print("Percent of predicted real male samples: {:.3f}".format(real_count_dict["percent"]["num_male"] / len(real_dataset)))
+
+    # classifier-free guidance, for synthetic samples
     w_list = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]
+    # for plotting
+    if not args.sampling_only:
+        prob_hist_list = []
 
     for w in w_list:
         args.classifier_free_w = w
@@ -177,18 +274,7 @@ def guidance_sample(args):
                 labels = file_load['arr_1'] # empty if class_cond = False
                 print("Loading samples and labels from {}".format(file_path))
                 
-            classifier = DC_mnist(
-                num_classes = metadata.num_classes,
-                num_domains = 2,
-                learning_rate = 1e-3,
-                weight_decay = 1e-4,
-                device = args.device
-            )
-            if args.domain_classifier:
-                classifier.load(args.domain_classifier)
-                if args.local_rank == 0:
-                    print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
-            classifier.eval()
+            assert classifier is not None, f"Invalid domain classifier for {args.dataset} dataset"
 
             # count number of left-flipped and right-flipped synthetic samples
             if args.local_rank == 0:
@@ -227,8 +313,6 @@ def guidance_sample(args):
                 assert args.num_sampled_images == np.sum(classwise_counts["num_samples"]), "number of total samples and sum of classwise counts do not match!"
                 print("Precent of regular synthetic digits by classes: {}".format((classwise_counts["num_left"] / classwise_counts["num_samples"]).tolist()))
                 print("Precent of flipped synthetic digits by classes: {}".format((classwise_counts["num_right"] / classwise_counts["num_samples"]).tolist()))
-            
-            return
             
         elif "cifar-superclass" in args.dataset:
             if args.sampling_only:
@@ -282,6 +366,33 @@ def guidance_sample(args):
                 print("Loading samples and labels from {}".format(file_path))
 
                 # domain classifier and count distribution
+                if args.local_rank == 0:
+                    transform_test = transforms.Compose(
+                        [
+                            transforms.Resize(224),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # normalized by imagenet mean std
+                        ]
+                    )
+                    domain_dataset = ArrayToImageLabel(
+                        samples = sampled_images,
+                        labels = None,
+                        mode = "RGB",
+                        transform = transform_test,
+                        target_transform = None
+                    )
+                    domain_dataloader = DataLoader(
+                        domain_dataset,
+                        batch_size = args.batch_size,
+                        shuffle = False,
+                        num_workers = ngpus * 4
+                    )
+
+                    count_dict = count_fairface(domain_dataloader, classifier, return_type=["percent", "histogram"])
+                    # print result
+                    print("Percent of female samples: {:.3f}".format(count_dict["percent"]["num_female"] / args.num_sampled_images))
+                    print("Percent of male samples: {:.3f}".format(count_dict["percent"]["num_male"] / args.num_sampled_images))
+                    prob_hist_list.append(count_dict["histogram"])
         
         elif args.dataset == "cifar-imagenet":
             if args.sampling_only:
@@ -307,12 +418,39 @@ def guidance_sample(args):
                 labels = file_load['arr_1'] # empty if class_cond = False
                 print("Loading samples and labels from {}".format(file_path))
 
-                # domain classifier and count distribution
-        
+                if args.local_rank == 0:
+                    transform_test = transforms.Compose(
+                        [
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+                        ]
+                    )
+                    domain_dataset = ArrayToImageLabel(
+                        samples = sampled_images,
+                        labels = None,
+                        mode = "RGB",
+                        transform = transform_test,
+                        target_transform = None
+                    )
+                    domain_dataloader = DataLoader(
+                        domain_dataset,
+                        batch_size = args.batch_size,
+                        shuffle = False,
+                        num_workers = ngpus * 4
+                    )
+                    count_dict = count_cifar_imgnet(domain_dataloader, classifier, return_type=["percent", "histogram"])
+
+                    # print result
+                    print("Percent of CIFAR samples: {:.3f}".format(count_dict["percent"]["num_cifar"] / args.num_sampled_images))
+                    print("Percent of ImageNet samples: {:.3f}".format(count_dict["percent"]["num_imgnet"] / args.num_sampled_images))
+
+                    prob_hist_list.append(count_dict["histogram"])
+            
         else:
             raise ValueError(f"Invalid dataset: {args.dataset}!")
             
         if args.sampling_only:
+            print(f"sampling with guidance scale {args.classifier_free_w}")
             if "ema" in args.ckpt_name:
                 os.makedirs(os.path.join(log_dir, "samples_ema"), exist_ok=True)
                 np.savez(
@@ -335,8 +473,16 @@ def guidance_sample(args):
                     sampled_images,
                     labels,
                 )
+    
+    # have additional results, plot and save
+    if len(prob_hist_list) > 0:
+        os.makedirs(os.path.join(log_dir, "figures"), exist_ok=True)
+        if args.dataset == "cifar-imagenet":
+            plot_cifar_imgnet_hist(real_count_dict["histogram"], prob_hist_list, os.path.join(log_dir, "figures"))
+        elif args.dataset == "fairface":
+            plot_fairface_hist(real_count_dict["histogram"], prob_hist_list, os.path.join(log_dir, "figures"))
         
-        return
+    return
 
 
 if __name__ == "__main__":
