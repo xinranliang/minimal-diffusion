@@ -58,6 +58,7 @@ class CIFAR_ImageNet(Dataset):
         target_transform, # default None
         num_cifar, # base dataset size
         num_imagenet, # other dataset size
+        domain_label, # whether to use 20 classes including domain information
         init, # whether initialize subsample index
         date, # date of experiment to handle multiple runs
     ):
@@ -67,6 +68,9 @@ class CIFAR_ImageNet(Dataset):
         self.image_size = 32
         self.num_cifar = int(num_cifar * NUM_TOTAL)
         self.num_imagenet = int(num_imagenet * NUM_TOTAL)
+
+        # for verification
+        self.domain_label = domain_label
 
         assert split in ["train", "valid", "test"]
         self.full_dataset = datasets.ImageFolder(
@@ -143,7 +147,22 @@ class CIFAR_ImageNet(Dataset):
         Returns:
             tuple: (sample, target) where target is class_index of the target class.
         """
-        return self.full_dataset.__getitem__(index)
+
+        # for verification only
+        if self.domain_label:
+            path, target = self.full_dataset.samples[index]
+            sample = self.full_dataset.loader(path)
+            if self.full_dataset.transform is not None:
+                sample = self.full_dataset.transform(sample)
+            if self.full_dataset.target_transform is not None:
+                target = self.full_dataset.target_transform(target)
+            if "cifar10" not in path.split("/")[-1]:
+                target += len(CLASSES)
+            return sample, target 
+        
+        # regular training for experiment results
+        else:
+            return self.full_dataset.__getitem__(index)
 
 
 if __name__ == "__main__":

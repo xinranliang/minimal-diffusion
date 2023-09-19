@@ -279,7 +279,7 @@ def main(args):
     elif "cifar-imagenet" in args.dataset:
         log_dir = os.path.join(
             args.save_dir, 
-            "cifar{}_imagenet{}".format(args.num_cifar, args.num_imagenet),
+            "cifar{}_imagenet{}_numclass{}".format(args.num_cifar, args.num_imagenet, metadata.num_classes),
             "{}_diffusionstep_{}_samplestep_{}_condition_{}_lr_{}_bs_{}_dropprob_{}".format(
                 args.arch, args.diffusion_steps, args.sampling_steps, args.class_cond, args.lr, args.batch_size * ngpus, args.class_cond_dropout
                 )
@@ -385,6 +385,7 @@ def main(args):
 
         # sample during training
         if epoch > 0 and epoch % args.ckpt_sample_freq == 0:
+            args.classifier_free_w = 0.0
             if ngpus > 1:
                 sampled_images, _ = sample_N_images(
                         64,

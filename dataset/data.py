@@ -71,6 +71,19 @@ def get_metadata(
                 "date": date
             }
         )
+    elif name == "cifar-imagenet-check":
+        metadata = EasyDict(
+            {
+                "image_size": 32,
+                "num_classes": 20,
+                "train_images": num_cifar + num_imagenet,
+                "val_images": 10000,
+                "num_cifar": num_cifar,
+                "num_imagenet": num_imagenet,
+                "num_channels": 3,
+                "date": date
+            }
+        )
     elif name == "mix-cifar10-imagenet" and (fix == "total" or fix == "color" or fix == "gray" or fix == "half"):
         metadata = EasyDict(
             {
@@ -272,6 +285,24 @@ def get_dataset(name, data_dir, metadata):
             num_cifar = metadata.num_cifar,
             num_imagenet = metadata.num_imagenet,
             init = False,
+            domain_label = False,
+            date = metadata.date
+        )
+    elif name == "cifar-imagenet-check":
+        transform_train = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ]
+        )
+        train_set = CIFAR_ImageNet(
+            split = "train",
+            transform=transform_train,
+            target_transform=None,
+            num_cifar = metadata.num_cifar,
+            num_imagenet = metadata.num_imagenet,
+            init = False,
+            domain_label = True,
             date = metadata.date
         )
     
