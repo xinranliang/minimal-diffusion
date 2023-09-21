@@ -21,7 +21,7 @@ from dataset.utils import ArrayToImageLabel
 from model.diffusion import GuassianDiffusion, sample_N_images
 import model.unets as unets
 
-from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet, count_cifar_imgnet
+from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet, count_cifar_imgnet, eval_cifar_imgnet_domain
 from domain_classifier.mnist_flip import DomainClassifier as DC_mnist, count_flip
 from domain_classifier.fairface import DomainClassifier as DC_fairface, count_fairface, count_fairface_real
 from domain_classifier.celeba import DomainClassifier as DC_celeba
@@ -168,6 +168,22 @@ def guidance_sample(args):
             print("Percent of predicted real CIFAR samples: {:.5f}".format(real_count_dict["percent"]["num_cifar"] / len(real_dataset)))
             print("Percent of predicted real ImageNet samples: {:.5f}".format(real_count_dict["percent"]["num_imgnet"] / len(real_dataset)))
         
+        elif args.dataset == "cifar-imagenet-check":
+            # domain classifier and count distribution
+            classifier = DC_cifar_imgnet(
+                num_classes = 2,
+                arch = "resnet50",
+                pretrained = False,
+                learning_rate = 0.001,
+                weight_decay = 0.0001,
+                device = args.device
+            )
+            if args.domain_classifier:
+                classifier.load(args.domain_classifier)
+                if args.local_rank == 0:
+                    print("Loaded domain classifier checkpoint from {}.".format(args.domain_classifier))
+            classifier.eval()
+
         elif args.dataset == "fairface":
             classifier = DC_fairface(
                 num_classes = 2,
@@ -525,6 +541,56 @@ def guidance_sample(args):
                         sub_results.append(np.round(count_dict["percent"]["num_cifar"] / 10000, 5))
                     print(f"Percent of CIFAR samples: {sub_results}")
             
+        elif args.dataset == "cifar-imagenet-check":
+            if args.sampling_only:
+                # sample first time
+                sampled_images, labels = sample_N_images(
+                    args.num_sampled_images,
+                    model,
+                    diffusion,
+                    None,
+                    args.sampling_steps,
+                    args.batch_size,
+                    metadata.num_channels,
+                    metadata.image_size,
+                    metadata.num_classes,
+                    args,
+                )
+            else:
+                # otherwise load previous samples
+                file_path = os.path.join(log_dir, "samples_ema", f"{args.ckpt_name}_num{args.num_sampled_images}_guidance{args.classifier_free_w}.npz",)
+                file_load = np.load(file_path, allow_pickle=True)
+
+                sampled_images = file_load['arr_0'] # shape = num_samples x height x width x n_channel
+                labels = file_load['arr_1'] # empty if class_cond = False
+                print("Loading samples and labels from {}".format(file_path))
+
+                if args.local_rank == 0:
+                    transform_test = transforms.Compose(
+                        [
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[0.47889522, 0.47227842, 0.43047404], std=[0.24205776, 0.23828046, 0.25874835])
+                        ]
+                    )
+                    domain_dataset = ArrayToImageLabel(
+                        samples = sampled_images,
+                        labels = labels, # should be 20-class labels
+                        mode = "RGB",
+                        transform = transform_test,
+                        target_transform = None
+                    )
+                    domain_dataloader = DataLoader(
+                        domain_dataset,
+                        batch_size = args.batch_size,
+                        shuffle = False,
+                        num_workers = ngpus * 4
+                    )
+
+                    return_dict = eval_cifar_imgnet_domain(domain_dataloader, classifier, return_type = ["true", "pred", "accuracy", "histogram"])
+
+                    print("True labels: {:.3f} are CIFAR and {:.3f} are ImageNet".format(return_dict["true"]["num_cifar"] / args.num_sampled_images, return_dict["true"]["num_imgnet"] / args.num_sampled_images))
+                    print("Overall accuracy: {:.3f}".format(return_dict["num_correct"] / args.num_sampled_images))
+                    
         else:
             raise ValueError(f"Invalid dataset: {args.dataset}!")
             

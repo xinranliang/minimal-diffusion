@@ -50,6 +50,42 @@ def count_cifar_imgnet(imagelabel_loader, classifier, return_type, classwise=Fal
             return_results["histogram"] = np.array(prob_list, dtype=float)
         return return_results
 
+
+def eval_cifar_imgnet_domain(imagelabel_loader, classifier, return_type):
+    prob_list = []
+    num_correct = 0
+    true_cifar, true_imgnet = 0, 0
+    pred_cifar, pred_imgnet = 0, 0
+    for image, domain_class_label in iter(imagelabel_loader):
+        # transform true label from class conditioning
+        # [0, 9] in cifar; [10, 19] in imgnet
+        domain_class_label = domain_class_label.detach().cpu().numpy()
+        true_cifar += sum(domain_class_label < 10)
+        true_imgnet += sum(domain_class_label >= 10)
+        domain_class_label = np.where(domain_class_label < 10, 0, np.where(domain_class_label >= 10, 1, domain_class_label))
+
+        with torch.no_grad():
+            syn_pred = classifier.predict(image)
+            syn_pred_prob = syn_pred.detach().cpu().numpy() # num_samples x 2
+            # return predicted probability histogram
+            prob_list.extend(np.squeeze(syn_pred_prob[:, 0])) # (num_samples, )
+            syn_pred_value = torch.argmax(syn_pred, dim=-1).detach().cpu().numpy()
+            pred_cifar += sum(syn_pred_value == 0)
+            pred_imgnet += sum(syn_pred_value == 1)
+            num_correct += sum(syn_pred_value == domain_class_label)
+        
+    return_results = {}
+    if "true" in return_type:
+        return_results["true"] = {"num_cifar": true_cifar, "num_imgnet": true_imgnet}
+    if "pred" in return_type:
+        return_results["pred"] = {"num_cifar": pred_cifar, "num_imgnet": pred_imgnet}
+    if "accuracy" in return_type:
+        return_results["num_correct"] = num_correct
+    if "histogram" in return_type:
+        return_results["histogram"] = np.array(prob_list, dtype=float)
+    return return_results
+
+
 class Domain_CifarImageNet(datasets.ImageFolder):
     def __init__(
         self,
