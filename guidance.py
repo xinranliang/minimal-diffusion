@@ -30,7 +30,7 @@ from metrics.color_gray import count_colorgray, compute_colorgray
 import utils
 from main import get_args
 
-from plot.plot_cifar_imgnet import plot_cifar_imgnet_hist
+from plot.plot_cifar_imgnet import plot_cifar_imgnet_hist, plot_check_domaineval
 from plot.plot_fairface_gender import plot_fairface_hist
 
 
@@ -586,10 +586,11 @@ def guidance_sample(args):
                         num_workers = ngpus * 4
                     )
 
-                    return_dict = eval_cifar_imgnet_domain(domain_dataloader, classifier, return_type = ["true", "pred", "accuracy", "histogram"])
+                    return_dict = eval_cifar_imgnet_domain(domain_dataloader, classifier, return_type = ["true", "pred", "full"])
 
-                    print("True labels: {:.3f} are CIFAR and {:.3f} are ImageNet".format(return_dict["true"]["num_cifar"] / args.num_sampled_images, return_dict["true"]["num_imgnet"] / args.num_sampled_images))
-                    print("Overall accuracy: {:.3f}".format(return_dict["num_correct"] / args.num_sampled_images))
+                    save_folder = os.path.join(log_dir, "figures")
+                    os.makedirs(save_folder, exist_ok=True)
+                    plot_check_domaineval(return_dict, save_folder, args.classifier_free_w, [args.num_cifar, args.num_imagenet])
                     
         else:
             raise ValueError(f"Invalid dataset: {args.dataset}!")

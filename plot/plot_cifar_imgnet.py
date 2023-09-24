@@ -3,6 +3,7 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 num_bins = 50
 guidance_values = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
@@ -102,7 +103,56 @@ def compute_sub_error():
     plt.savefig(os.path.join("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-31/cifar-imagenet/figures", "guidance_count_subset.pdf"), dpi=300, bbox_inches="tight")
     plt.close()
 
+
+def plot_check_domaineval(return_results, save_folder, cfg_w, cf_title):
+    # confusion matrix between predicted labels and true labels
+    cf_matrix = confusion_matrix(return_results["full"]["true_labels"], return_results["full"]["pred_labels"])
+    cf_display = ConfusionMatrixDisplay(confusion_matrix=cf_matrix, display_labels=["cifar", "imgnet"])
+    cf_display.plot()
+    plt.title(f"cifar/imgnet = {cf_title[0]}/{cf_title[1]} with cfg_w = {cfg_w}")
+    plt.savefig(f"{save_folder}/cf_matrix_cfg_w{cfg_w}.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{save_folder}/cf_matrix_cfg_w{cfg_w}.pdf", dpi=300, bbox_inches="tight")
+    plt.close()
+
+    print(f"cfg_w value: {cfg_w}")
+
+    # accuracy
+    print("accuracy: {:.5f}".format(return_results["full"]["accuracy"]))
+
+    # at representation level, percentage of predicted cifar and true cifar
+    print("true portion of cifar samples: {:.5f}".format(return_results["true"]["num_cifar"] / 2500))
+    print("predicted portion of cifar samples: {:.5f}".format(return_results["pred"]["num_cifar"] / 2500))
+
+def plot_check_repr():
+    ws = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], dtype=np.float64)
+    # at representation level, percentage of predicted cifar and true cifar
+    true_repr = np.array([0.5112, 0.5032, 0.504, 0.492, 0.4848, 0.5056, 0.492, 0.52, 0.504, 0.4852, 0.524], dtype=np.float64)
+    line_labels = ["cifar/imgnet = 0.1/0.9", "cifar/imgnet = 0.5/0.5", "cifar/imgnet = 0.9/0.1"]
+    pred_repr = [
+        np.array([0.502, 0.502, 0.5028, 0.4912, 0.4848, 0.5052, 0.492, 0.5196, 0.504, 0.4852, 0.5236], dtype=np.float64), # 0.1/0.9
+        np.array([0.5028, 0.5004, 0.5012, 0.4876, 0.4816, 0.4992, 0.4892, 0.5156, 0.5016, 0.4804, 0.522], dtype=np.float64), # 0.5/0.5
+        np.array([0.5092, 0.4916, 0.4964, 0.4828, 0.4664, 0.4844, 0.4664, 0.4844, 0.4636, 0.444, 0.4684], dtype=np.float64) # 0.9/0.1
+    ]
+
+    plt.figure(figsize=(8, 8/1.6))
+    with plt.style.context('ggplot'):
+        plt.plot(ws, true_repr, linewidth=2, linestyle="--", label="True empirical representation")
+        for idx in range(len(line_labels)):
+            plt.plot(ws, pred_repr[idx], linewidth=1, linestyle="-", label=line_labels[idx])
+        plt.xticks(ws, ws)
+        plt.ylim(0.44, 0.55)
+        plt.yticks(np.arange(0.44, 0.55, step=0.01))
+        plt.xlabel("Scale of classifier-free guidance ($w$)")
+        plt.ylabel("Predicted empirical representation")
+        plt.title("Performance of automatic classifier on CIFAR/ImageNet w.r.t Guidance")
+        plt.legend()
+    
+    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-31/cifar-imagenet-check/figures/acc_repr_level.png", dpi=300, bbox_inches="tight")
+    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-31/cifar-imagenet-check/figures/acc_repr_level.pdf", dpi=300, bbox_inches="tight")
+
 if __name__ == "__main__":
-    os.makedirs("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-31/cifar-imagenet/figures", exist_ok=True)
-    plot_cifar_imgnet()
-    compute_sub_error()
+    # os.makedirs("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-31/cifar-imagenet/figures", exist_ok=True)
+    # plot_cifar_imgnet()
+    # compute_sub_error()
+    os.makedirs("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-31/cifar-imagenet-check/figures", exist_ok=True)
+    plot_check_repr()
