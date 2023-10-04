@@ -103,70 +103,50 @@ def compute_sub_error():
     plt.close()
 
 
-def plot_check_repr_batch1():
+def plot_check_repr():
     ws = np.array([0.0, 5.0, 10.0], dtype=np.float64)
     colors = ["blue", "orange", "green", "purple", "brown"]
     line_labels = ["female/male = 0.1/0.9", "female/male = 0.5/0.5", "female/male = 0.9/0.1"]
+    true_train = [
+        np.array([0.1, 0.1, 0.1], dtype=np.float64), # 0.1/0.9
+        np.array([0.5, 0.5, 0.5], dtype=np.float64), # 0.5/0.5
+        np.array([0.9, 0.9, 0.9], dtype=np.float64) # 0.9/0.1
+    ]
     true_repr = [
-        np.array([8, 4, 6], dtype=np.float64), # 0.1/0.9
-        np.array([18, 14, 11], dtype=np.float64), # 0.5/0.5
-        np.array([36, 41, 44], dtype=np.float64) # 0.9/0.1
+        np.array([18, 6, 12], dtype=np.float64) / 100, # 0.1/0.9
+        np.array([42, 31, 34], dtype=np.float64) / 100, # 0.5/0.5
+        np.array([74, 85, 85], dtype=np.float64) / 100 # 0.9/0.1
     ]
     pred_repr = [
-        np.array([11, 8, 4], dtype=np.float64), # 0.1/0.9
-        np.array([23, 21, 14], dtype=np.float64), # 0.5/0.5
-        np.array([45, 44, 40], dtype=np.float64) # 0.9/0.1
+        np.array([22, 14, 11], dtype=np.float64) / 100, # 0.1/0.9
+        np.array([53, 45, 37], dtype=np.float64) / 100, # 0.5/0.5
+        np.array([85, 88, 79], dtype=np.float64) / 100 # 0.9/0.1
+    ]
+    unsure_repr = [
+        np.array([10, 7, 4], dtype=np.float64) / 100, # 0.1/0.9
+        np.array([11, 8, 4], dtype=np.float64) / 100, # 0.5/0.5
+        np.array([15, 9, 5], dtype=np.float64) / 100 # 0.9/0.1
     ]
 
-    plt.figure(figsize=(8, 8/1.6))
+    plt.figure(figsize=(8, 6))
     with plt.style.context('ggplot'):
         for idx in range(len(line_labels)):
-            plt.plot(ws, true_repr[idx], linestyle="--", color=colors[2 * idx])
             plt.plot(ws, pred_repr[idx], linestyle="-", color=colors[2 * idx])
+            plt.errorbar(ws, true_repr[idx], yerr=unsure_repr[idx] / 2, linestyle="--", linewidth=1, color=colors[2 * idx], capsize=3)
+            plt.plot(ws, true_train[idx], linestyle="dotted", color=colors[2 * idx])
         plt.xticks(ws, ws)
-        plt.ylim(0, 51)
-        plt.yticks(np.arange(0, 51, step=5))
+        plt.ylim(0, 1.01)
+        plt.yticks(np.arange(0, 1.01, step=0.05))
         plt.xlabel("Scale of classifier-free guidance ($w$)")
         plt.ylabel("Empirical predicted v.s. annotated representation")
         plt.title("Performance of automatic classifier on FairFace w.r.t Guidance")
     
-    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures/acc_repr_level_batch1.png", dpi=300, bbox_inches="tight")
-    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures/acc_repr_level_batch1.pdf", dpi=300, bbox_inches="tight")
-
-def plot_check_repr_batch2():
-    ws = np.array([0.0, 5.0, 10.0], dtype=np.float64)
-    colors = ["blue", "orange", "green", "purple", "brown"]
-    line_labels = ["female/male = 0.1/0.9", "female/male = 0.5/0.5", "female/male = 0.9/0.1"]
-    true_repr = [
-        np.array([10, 2, 6], dtype=np.float64), # 0.1/0.9
-        np.array([30, 24, 23], dtype=np.float64), # 0.5/0.5
-        np.array([40, 44, 39], dtype=np.float64) # 0.9/0.1
-    ]
-    pred_repr = [
-        np.array([11, 6, 7], dtype=np.float64), # 0.1/0.9
-        np.array([23, 21, 14], dtype=np.float64), # 0.5/0.5
-        np.array([45, 44, 40], dtype=np.float64) # 0.9/0.1
-    ]
-
-    plt.figure(figsize=(8, 8/1.6))
-    with plt.style.context('ggplot'):
-        for idx in range(len(line_labels)):
-            plt.plot(ws, true_repr[idx], linestyle="--", color=colors[2 * idx])
-            plt.plot(ws, pred_repr[idx], linestyle="-", color=colors[2 * idx])
-        plt.xticks(ws, ws)
-        plt.ylim(0, 51)
-        plt.yticks(np.arange(0, 51, step=5))
-        plt.xlabel("Scale of classifier-free guidance ($w$)")
-        plt.ylabel("Empirical predicted v.s. annotated representation")
-        plt.title("Performance of automatic classifier on FairFace w.r.t Guidance")
-    
-    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures/acc_repr_level_batch2.png", dpi=300, bbox_inches="tight")
-    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures/acc_repr_level_batch2.pdf", dpi=300, bbox_inches="tight")
+    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures/acc_repr_level.png", dpi=300, bbox_inches="tight")
+    plt.savefig("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures/acc_repr_level.pdf", dpi=300, bbox_inches="tight")
 
 
 if __name__ == "__main__":
     os.makedirs("/n/fs/xl-diffbia/projects/minimal-diffusion/logs/2023-07-25/fairface/figures", exist_ok=True)
     # plot_fairface()
     # compute_sub_error()
-    plot_check_repr_batch1()
-    plot_check_repr_batch2()
+    plot_check_repr()

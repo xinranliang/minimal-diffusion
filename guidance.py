@@ -18,7 +18,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from dataset.data import get_metadata, get_domain_dataset
 from dataset.utils import ArrayToImageLabel
 
-from model.diffusion import GuassianDiffusion, sample_N_images
+from model.diffusion import GuassianDiffusion, sample_N_images, sample_N_images_fixcond
 import model.unets as unets
 
 from domain_classifier.cifar_imagenet import DomainClassifier as DC_cifar_imgnet, count_cifar_imgnet, eval_cifar_imgnet_domain
@@ -162,11 +162,13 @@ def guidance_sample(args):
                 num_workers = 4
             )
 
-            real_count_dict = count_cifar_imgnet(real_dataloader, classifier, return_type=["percent", "histogram"])
-
+            real_count_dict = count_cifar_imgnet(real_dataloader, classifier, return_type=["percent", "histogram"], caliberate="none")
             # print result
-            print("Percent of predicted real CIFAR samples: {:.5f}".format(real_count_dict["percent"]["num_cifar"] / len(real_dataset)))
-            print("Percent of predicted real ImageNet samples: {:.5f}".format(real_count_dict["percent"]["num_imgnet"] / len(real_dataset)))
+            print("Percent of predicted real CIFAR samples w/ no caliberation: {:.5f}".format(real_count_dict["percent"]["num_cifar"] / len(real_dataset)))
+
+            real_count_dict = count_cifar_imgnet(real_dataloader, classifier, return_type=["percent", "histogram"], caliberate="reweight")
+            # print result
+            print("Percent of predicted real CIFAR samples w/ reweight caliberation: {:.5f}".format(real_count_dict["percent"]["num_cifar"] / len(real_dataset)))
         
         elif args.dataset == "cifar-imagenet-check":
             # domain classifier and count distribution
@@ -496,15 +498,17 @@ def guidance_sample(args):
                         shuffle = False,
                         num_workers = ngpus * 4
                     )
-                    count_dict = count_cifar_imgnet(domain_dataloader, classifier, return_type=["percent", "histogram"])
-
+                    count_dict = count_cifar_imgnet(domain_dataloader, classifier, return_type=["percent", "histogram"], caliberate="none")
                     # print result
-                    print("Percent of CIFAR samples: {:.5f}".format(count_dict["percent"]["num_cifar"] / args.num_sampled_images))
-                    print("Percent of ImageNet samples: {:.5f}".format(count_dict["percent"]["num_imgnet"] / args.num_sampled_images))
+                    print("Percent of CIFAR samples w/ no caliberation: {:.5f}".format(count_dict["percent"]["num_cifar"] / args.num_sampled_images))
+
+                    count_dict = count_cifar_imgnet(domain_dataloader, classifier, return_type=["percent", "histogram"], caliberate="reweight")
+                    # print result
+                    print("Percent of CIFAR samples w/ reweight caliberation: {:.5f}".format(count_dict["percent"]["num_cifar"] / args.num_sampled_images))
 
                     prob_hist_list.append(count_dict["histogram"])
 
-                    # subsample for more results
+                    """# subsample for more results
                     if args.class_cond:
                         assert sampled_images.shape[0] == labels.shape[0], "Shape of images and lables does not match"
                     sub_results = []
@@ -539,12 +543,12 @@ def guidance_sample(args):
                         count_dict = count_cifar_imgnet(domain_dataloader, classifier, return_type=["percent", "histogram"])
                         # print result
                         sub_results.append(np.round(count_dict["percent"]["num_cifar"] / 10000, 5))
-                    print(f"Percent of CIFAR samples: {sub_results}")
+                    print(f"Percent of CIFAR samples: {sub_results}")"""
             
         elif args.dataset == "cifar-imagenet-check":
             if args.sampling_only:
                 # sample first time
-                sampled_images, labels = sample_N_images(
+                sampled_images, labels = sample_N_images_fixcond(
                     args.num_sampled_images,
                     model,
                     diffusion,
@@ -586,11 +590,14 @@ def guidance_sample(args):
                         num_workers = ngpus * 4
                     )
 
-                    return_dict = eval_cifar_imgnet_domain(domain_dataloader, classifier, return_type = ["true", "pred", "full"])
-
                     save_folder = os.path.join(log_dir, "figures")
                     os.makedirs(save_folder, exist_ok=True)
-                    plot_check_domaineval(return_dict, save_folder, args.classifier_free_w, [args.num_cifar, args.num_imagenet])
+                    # no caliberation
+                    return_dict = eval_cifar_imgnet_domain(domain_dataloader, classifier, return_type = ["true", "pred", "full"], caliberate = "none")
+                    plot_check_domaineval(return_dict, save_folder, args.classifier_free_w, [args.num_cifar, args.num_imagenet], "none")
+                    # caliberate by reweighting
+                    return_dict = eval_cifar_imgnet_domain(domain_dataloader, classifier, return_type = ["true", "pred", "full"], caliberate = "reweight")
+                    plot_check_domaineval(return_dict, save_folder, args.classifier_free_w, [args.num_cifar, args.num_imagenet], "reweight")
                     
         else:
             raise ValueError(f"Invalid dataset: {args.dataset}!")

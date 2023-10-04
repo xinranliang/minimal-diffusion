@@ -523,6 +523,7 @@ def get_domain_dataset(name, data_dir, metadata):
             target_transform=None,
             num_cifar = metadata.num_cifar,
             num_imagenet = metadata.num_imagenet,
+            domain_label = False,
             init = False,
             date = metadata.date
         )

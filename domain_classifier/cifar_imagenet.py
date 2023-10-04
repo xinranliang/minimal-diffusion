@@ -27,31 +27,29 @@ from torch.nn.parallel import DistributedDataParallel
 from dataset.utils import logger, ArraytoImage
 
 
-def count_cifar_imgnet(imagelabel_loader, classifier, return_type, classwise=False):
-    if not classwise:
-        num_cifar, num_imgnet = 0, 0
-        prob_list = []
-        for image, _ in iter(imagelabel_loader):
-            with torch.no_grad():
-                syn_pred = classifier.predict(image)
-                syn_pred_prob = syn_pred.detach().cpu().numpy() # num_samples x 2
-                # return predicted probability histogram
-                prob_list.extend(np.squeeze(syn_pred_prob[:, 0])) # (num_samples, )
-                # return binary predicted counts
-                syn_pred_count = torch.argmax(syn_pred, dim=-1)
-                syn_pred_count = syn_pred_count.detach().cpu().numpy() # (num_samples, )
-                num_cifar += sum(syn_pred_count == 0)
-                num_imgnet += sum(syn_pred_count == 1)
+def count_cifar_imgnet(imagelabel_loader, classifier, return_type, caliberate):
+    num_cifar, num_imgnet = 0, 0
+    prob_list = []
+    for image, _ in iter(imagelabel_loader):
+        with torch.no_grad():
+            syn_pred = classifier.predict(image, posthoc=caliberate)
+            syn_pred_prob = syn_pred.detach().cpu().numpy() # num_samples x 2
+            # return predicted probability histogram
+            prob_list.extend(np.squeeze(syn_pred_prob[:, 0])) # (num_samples, )
+            # return binary predicted counts
+            syn_pred_count = torch.argmax(syn_pred, dim=-1).detach().cpu().numpy() # (num_samples, )
+            num_cifar += sum(syn_pred_count == 0)
+            num_imgnet += sum(syn_pred_count == 1)
         
-        return_results = {}
-        if "percent" in return_type:
-            return_results["percent"] = {"num_cifar": num_cifar, "num_imgnet": num_imgnet}
-        if "histogram" in return_type:
-            return_results["histogram"] = np.array(prob_list, dtype=float)
-        return return_results
+    return_results = {}
+    if "percent" in return_type:
+        return_results["percent"] = {"num_cifar": num_cifar, "num_imgnet": num_imgnet}
+    if "histogram" in return_type:
+        return_results["histogram"] = np.array(prob_list, dtype=float)
+    return return_results
 
 
-def eval_cifar_imgnet_domain(imagelabel_loader, classifier, return_type):
+def eval_cifar_imgnet_domain(imagelabel_loader, classifier, return_type, caliberate):
     pred_labels = []
     true_labels = []
     for image, domain_class_label in iter(imagelabel_loader):
@@ -62,14 +60,14 @@ def eval_cifar_imgnet_domain(imagelabel_loader, classifier, return_type):
         true_labels.append(domain_class_label)
 
         with torch.no_grad():
-            syn_pred = classifier.predict(image)
+            syn_pred = classifier.predict(image, posthoc=caliberate)
             syn_pred_prob = syn_pred.detach().cpu().numpy() # num_samples x 2
             syn_pred_value = torch.argmax(syn_pred, dim=-1).detach().cpu().numpy()
             pred_labels.append(syn_pred_value)
         
     pred_labels = np.concatenate(pred_labels)
     true_labels = np.concatenate(true_labels)
-    accuracy = sum(pred_labels == true_labels) / 2500
+    accuracy = sum(pred_labels == true_labels) / 5000
     return_results = {}
     if "true" in return_type:
         return_results["true"] = {"num_cifar": sum(true_labels == 0), "num_imgnet": sum(true_labels == 1)}
@@ -209,7 +207,7 @@ class DomainClassifier(nn.Module):
 
         return pred_loss, pred_acc
     
-    def predict(self, image, label=None, adapt=False):
+    def predict(self, image, label=None, posthoc="none"):
         # training time provided with true labels, return binary prediction accuracy
         # inference time provided with image only, return predicted probability of two classes
         if label is None:
@@ -219,10 +217,16 @@ class DomainClassifier(nn.Module):
 
         pred_logits = self.forward(image)
         # compute accuracy
-        if adapt:
-            pred_logits[:, 0] = pred_logits[:, 0] - torch.log(torch.tensor(50 / 260, dtype=torch.float, device=self.device))
-            pred_logits[:, 1] = pred_logits[:, 1] - torch.log(torch.tensor(210 / 260, dtype=torch.float, device=self.device))
         pred_probs = self.softmax(pred_logits)
+        if posthoc == "reweight":
+            # reweight
+            pred_probs[:, 0] = pred_probs[:, 0] / torch.tensor(5 / 26, dtype=torch.float, device=self.device)
+            pred_probs[:, 1] = pred_probs[:, 1] / torch.tensor(21 / 26, dtype=torch.float, device=self.device)
+            # normalize
+            pred_probs[:, 0] = pred_probs[:, 0] / torch.sum(pred_probs, dim=1)
+            pred_probs[:, 1] = pred_probs[:, 1] / torch.sum(pred_probs, dim=1)
+        else:
+            assert posthoc == "none", "invalid caliberation argument"
         # pred_target = torch.argmax(pred_probs, dim=-1)
 
         if label is not None:
